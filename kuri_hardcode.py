@@ -13,16 +13,6 @@ def move(x, y, z, ax, ay, az):
      #Need to compensate for subscriber
     rate = rospy.Rate(10) # 10hz
     rate.sleep()
-    time = time_in
-    #print("Moving Bot for {0}s".format(time))
-
-    print("Moving turtlebot")
-    # velocity_msg.linear.x = 0.3
-    # velocity_msg.linear.x = x
-
-    #run for specific time
-    t0 = rospy.Time.now().to_sec()
-    t1 = t0
 
     velocity_msg.linear.x = x;
     velocity_msg.linear.y = y;
@@ -31,14 +21,6 @@ def move(x, y, z, ax, ay, az):
     velocity_msg.angular.y = ay;
     velocity_msg.angular.z = az;
 
-
-    while(t1-t0 < time):
-        #Publish the velocity
-        velocity_publisher.publish(vel_msg)
-        t1=rospy.Time.now().to_sec()
-    #After the loop, stops the robot
-    vel_msg.linear.x = 0
-    #Force the robot to stop
     velocity_publisher.publish(vel_msg)
 
 if __name__ == '__main__':
