@@ -5,8 +5,9 @@ import time
 
 def move(x, y, z, ax, ay, az):
     # Starts a new node
-    rospy.init_node('turtlebot_node', anonymous=True)
+    rospy.init_node('robot_cleaner', anonymous=True)
     velocity_publisher = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=10)
+
     velocity_msg = Twist()
 
     print("Moving turtlebot")
