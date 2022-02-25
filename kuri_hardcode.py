@@ -2,10 +2,6 @@
 import rospy
 from geometry_msgs.msg import Twist
 import time
-from socket import *
-import pickle #Pickle used for data transfering.
-from primeCalc import *
-import time
 
 def move(x, y, z, ax, ay, az):
     # Starts a new node
