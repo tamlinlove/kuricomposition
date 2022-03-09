@@ -1,0 +1,98 @@
+sudo service gizmo stop
+
+source workspace/devel/setup.bash 
+roscore
+
+source workspace/devel/setup.bash 
+roslaunch kuri_edu kuri_edu.launch
+
+To Move Head:
+rostopic pub /head_controller/command trajectory_msgs/JointTrajectory "header:
+  seq: 0
+  stamp:
+    secs: 0
+    nsecs: 0
+  frame_id: ''
+joint_names: ['head_1_joint','head_2_joint']
+points:
+- positions: [1.0, 1.0]
+  velocities: [0,0]
+  accelerations: [0,0]
+  effort: [0,0]
+  time_from_start: 1"
+
+To Move Eyes
+rostopic pub /eyelids_controller/command trajectory_msgs/JointTrajectory "header:
+  seq: 0
+  stamp:
+    secs: 0
+    nsecs: 0
+  frame_id: ''
+joint_names: ['eyelids_joint']
+points:
+- positions: [1]
+  velocities: [0]
+  accelerations: [0]
+  effort: [0]
+  time_from_start: 1"
+
+To Change Chest Light
+rostopic pub /mobile_base/commands/chest_leds mobile_base_driver/ChestLeds "leds:
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}
+- {red: 1, green: 0, blue: 0}"
+
+To Move Wheels;
+rostopic pub /mobile_base/commands/velocity geometry_msgs/Twist "linear:
+  x: 1.0
+  y: 0.0
+  z: 0.0
+angular:
+  x: 0.0
+  y: 0.0
+  z: 0.0"
+  
+ Rotate Right:
+rostopic pub /mobile_base/commands/velocity geometry_msgs/Twist "linear:
+  x: 0.0
+  y: 0.0
+  z: 0.0
+angular:
+  x: 0.0
+  y: 0.0
+  z: -1.6"
+
+To Do keyboard:
+rosrun teleop_twist_keyboard teleop_twist_keyboard.py
+
+To see the command which Kuri has recognised:
+rostopic echo /audio/voice/recognized
+
+To Capture Image Apparently: #NOTE madmux turns the camera on!
+rosrun madmux madmux-daemon
+python ~/workspace/scripts/simple_jpeg_one_frame.py
+
+To get sensor info:
+rostopic echo /mobile_base/* (the last topics under /mobile_base are all for touch and collision sensors)
+
+To RVIZ from other computer:
+export ROS_MASTER_URI=http://192.168.1.2:11311
+export ROS_IP=192.168.1.2 (on kuri)
+export ROS_IP=192.168.1.7 (on computer)
+rviz
+rostopic echo /vision/results
+
+Helpful:
+After launching Madmux roslaunch rgbd_launch kinect_frames.launch
