@@ -15,7 +15,8 @@ def move_head(publisher,p1,p2):
     rate = rospy.Rate(5) # 10hz
     rate.sleep()
 
-    head_msg.positions = [p1,p2]
+    print(head_msg)
+    head_msg.points.positions = [p1,p2]
 
     publisher.publish(head_msg)
 
