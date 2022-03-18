@@ -2,7 +2,7 @@
 from socket import *
 import rospy
 from geometry_msgs.msg import Twist
-from trajectory_msgs.msg import JointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 import time
 import pickle #Pickle used for data transfering.
 
@@ -16,7 +16,7 @@ def move_head(publisher,p1,p2):
     rate.sleep()
 
     print(head_msg)
-    head_msg.points = {"positions":[p1,p2]}
+    head_msg.points.positions
 
     publisher.publish(head_msg)
 

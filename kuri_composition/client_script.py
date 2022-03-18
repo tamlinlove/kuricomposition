@@ -10,9 +10,11 @@ servers = ["192.168.1.2"]
 ports = [12007]
 sockets = [0]
 
+TURN_MAGNITUDE = 1.52
 FORWARD = [0.3,0,0,0,0,0]
-TURN_LEFT = [0,0,0,0,0,1.55]
-TURN_RIGHT = [0,0,0,0,0,-1.55]
+TURN_LEFT = [0,0,0,0,0,TURN_MAGNITUDE]
+TURN_RIGHT = [0,0,0,0,0,-TURN_MAGNITUDE]
+SLEEP_TIME = 2
 
 
 MAP =   "LT T T T RT LT T T T RT\n" \
@@ -67,7 +69,7 @@ def run():
 
             client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
             results = client.get_replies(sockets[0])
-            time.sleep(1)
+            time.sleep(SLEEP_TIME)
 
             if done:
                 break

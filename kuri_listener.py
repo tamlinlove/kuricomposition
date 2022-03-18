@@ -28,6 +28,17 @@ def move(publisher, x, y, z, ax, ay, az):
     publisher.publish(velocity_msg)
     #time.sleep(1)
 
+    if ax != 0 or ay != 0 or az != 0:
+        # Send 0 rotation
+        time.sleep(1)
+        velocity_msg.linear.x = 0
+        velocity_msg.linear.y = 0
+        velocity_msg.linear.z = 0
+        velocity_msg.angular.x = 0
+        velocity_msg.angular.y = 0
+        velocity_msg.angular.z = 0
+        publisher.publish(velocity_msg)
+
 
 if __name__ == '__main__':
     #Set up ros stuff
