@@ -26,7 +26,7 @@ MAP =   "LT T T T RT LT T T T RT\n" \
         "L 0 0 0 R L 0 0 0 R\n" \
         "LD D D D RD LD D D D RD"
 
-start_position = (9,1)
+start_position = (8,1)
 T_positions = [(2,2), (2,7), (7,7), (7,2)]
 env = GridWorld(MAP=MAP, T_positions=T_positions, start_position=start_position)
 
@@ -39,7 +39,7 @@ B = load_EQ("models/left.npy")
 NEG = lambda EQ: NOT(EQ, EQ_max=MAX, EQ_min=MIN)
 XOR = lambda EQ1, EQ2: OR(AND(EQ1,NEG(EQ2)),AND(EQ2,NEG(EQ1)))
 
-P=EQ_P(AND(A,B))
+P=EQ_P(AND(A,NOT(B)))
 
 max_episodes = 1
 max_steps = 50
