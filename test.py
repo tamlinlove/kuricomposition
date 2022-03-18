@@ -16,7 +16,7 @@ def move_head(publisher,p1,p2):
     rate.sleep()
 
     print(head_msg)
-    head_msg.points = [p1,p2]
+    head_msg.points = {"positions":[p1,p2]}
 
     publisher.publish(head_msg)
 
