@@ -2,7 +2,7 @@
 from socket import *
 import rospy
 from geometry_msgs.msg import Twist
-from trajectory_msgs import JointTrajectory
+from trajectory_msgs.msg import JointTrajectory
 import time
 import pickle #Pickle used for data transfering.
 
