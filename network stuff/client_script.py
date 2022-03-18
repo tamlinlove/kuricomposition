@@ -2,13 +2,14 @@ import time
 import client
 
 
-servers = ["localhost"]
+#servers = ["localhost"]
+servers = ["192.168.1.2"]
 ports = [12007]
 sockets = [0]
 
-FORWARD = [0.6,0,0,0,0,0]
-TURN_LEFT = [0,0,0,0,0,1.6]
-TURN_RIGHT = [0,0,0,0,0,-1.6]
+FORWARD = [0.3,0,0,0,0,0]
+TURN_LEFT = [0,0,0,0,0,1.55]
+TURN_RIGHT = [0,0,0,0,0,-1.55]
 
 
 def run():
