@@ -8,9 +8,36 @@ import matplotlib.cm     as cm
 import matplotlib.colors as colors
 import matplotlib.patches as patches
 from collections import defaultdict
+from itertools import product, chain, combinations
 
 from enum import IntEnum
+from sympy.logic import boolalg
+from sympy import sympify, Symbol
 
+
+def exp_goals(all_goals, exp):         
+    def convert(exp):
+        if type(exp) == Symbol:
+            goals = set()  
+            for goal in all_goals:
+                if str(exp) in goal:
+                    goals.add(goal)
+            compound = goals
+        elif type(exp) == boolalg.Or:
+            compound = convert(exp.args[0])
+            for sub in exp.args[1:]:
+                compound = compound | convert(sub)
+        elif type(exp) == boolalg.And:
+            compound = convert(exp.args[0])
+            for sub in exp.args[1:]:
+                compound = compound & convert(sub)
+        else: # NOT
+            compound = convert(exp.args[0])
+            compound = all_goals - compound
+        return compound
+    
+    goals = list(convert(exp))
+    return goals
 
 # Defining actions and directions
 class Directions(IntEnum):
@@ -38,21 +65,18 @@ COLOURS = {0: [1, 1, 1], 1: [0.0, 0.0, 0.0], 3: [0, 0.5, 0], 10: [0, 0, 1], 20:[
 
 class GridWorld(gym.Env):
     metadata = {'render.modes': ['human']}
-    MAP = "1 1 1 1 1 1 1 1 1 1 1 1 1\n" \
-          "1 0 0 0 0 0 1 0 0 0 0 0 1\n" \
-          "1 0 0 0 0 0 0 0 0 0 0 0 1\n" \
-          "1 0 0 0 0 0 1 0 0 0 0 0 1\n" \
-          "1 0 0 0 0 0 1 0 0 0 0 0 1\n" \
-          "1 0 0 0 0 0 1 0 0 0 0 0 1\n" \
-          "1 1 0 1 1 1 1 0 0 0 0 0 1\n" \
-          "1 0 0 0 0 0 1 1 1 1 0 1 1\n" \
-          "1 0 0 0 0 0 1 0 0 0 0 0 1\n" \
-          "1 0 0 0 0 0 1 0 0 0 0 0 1\n" \
-          "1 0 0 0 0 0 0 0 0 0 0 0 1\n" \
-          "1 0 0 0 0 0 1 0 0 0 0 0 1\n" \
-          "1 1 1 1 1 1 1 1 1 1 1 1 1"
+    MAP =   "LT T T T RT LT T T T RT\n" \
+            "L 0 0 0 R L 0 0 0 R\n" \
+            "L 0 0 0 0 0 0 0 0 R\n" \
+            "L 0 0 0 R L 0 0 0 R\n" \
+            "LD D 0 D RD LD D 0 D RD\n" \
+            "LT T 0 T RT LT T 0 T RT\n" \
+            "L 0 0 0 R L 0 0 0 R\n" \
+            "L 0 0 0 0 0 0 0 0 R\n" \
+            "L 0 0 0 R L 0 0 0 R\n" \
+            "LD D D D RD LD D D D RD"
 
-    def __init__(self, MAP=MAP, dense_goal_rewards = False, dense_rewards = False, rmin_=-100, goal_reward=2, step_reward=-0.1, goals=None, T_positions=None, start_position=None):
+    def __init__(self, exp=None, goals=None, goal_reward=10, step_reward=-0.1, start_position=None, start_direction=None, has_doors=True):
 
         self.n = None
         self.m = None
@@ -62,7 +86,6 @@ class GridWorld(gym.Env):
         self.possiblePositions = []
         self.walls = []
         
-        self.MAP = MAP
         self._map_init()
         self.diameter = (self.n+self.m)-4
         self.directions = Directions
@@ -71,38 +94,57 @@ class GridWorld(gym.Env):
         self.done = False
         
         self.start_position = start_position
-        self.position = self.start_position if start_position else (1, 1)
-        self.direction = None
-        self.state = None
-        self.w = None #virtual state 
+        self.start_direction = start_direction
+        self.position = self.start_position if start_position else self.possiblePositions[0]
+        self.direction = self.start_direction if start_direction else self.directions.up
         self.step_count = 0
         
-        if goals:
-            self.goals = goals
-        else:
-            self.goals = (11, 11) 
-            
-        if T_positions:
-            self.T_positions = T_positions
-        else:
-            self.T_positions = self.goals
-
         # Rewards
         self.goal_reward = goal_reward
         self.step_reward = step_reward
         self.rmax = goal_reward
         self.rmin = step_reward
         
-        self.dense_goal_rewards = dense_goal_rewards
-        self.dense_rewards = dense_rewards
-        if self.dense_rewards:
-            self.rmin = self.rmin*10
-
         # Gym spaces for observation and action space
         self.observation_space = spaces.Discrete(len(self.possiblePositions))
         self.action_space = spaces.Discrete(len(self.actions))
-        
 
+        ##################### Goals
+        self.Goals = {}
+        self.Doors = {}
+        self.closed_doors = []
+        self.reached = set()
+
+        ## 4 goal locations at the center of rooms
+        self.Goals = {(2,7):"ne", (7,7):"se", (7,2):"sw", (2,2):"nw"}
+        
+        self.has_doors = has_doors
+        if self.has_doors:
+            self.Doors[(2,4)] = "n"
+            self.Doors[(2,5)] = "n"
+            self.Doors[(7,4)] = "s"
+            self.Doors[(7,5)] = "s"
+            self.Doors[(4,2)] = "w"
+            self.Doors[(5,2)] = "w"
+            self.Doors[(4,7)] = "e"
+            self.Doors[(5,7)] = "e"
+        doors = set(list(self.Doors.values()))
+        self.closed_doors = doors
+        if self.has_doors:
+            self.all_goals = chain.from_iterable(combinations(doors, r) for r in range(len(self.Doors)+1))
+            self.all_goals = list(frozenset(list(goal[0])+[goal[1]]) for goal in product(self.all_goals,self.Goals.values()))
+        else:
+            self.all_goals = [frozenset((r,)) for r in self.Goals.values()]
+        self._all_goals = frozenset(self.all_goals)
+
+        self.exp = None
+        if exp:
+            self.exp = sympify(exp, evaluate=False)
+            self.exp = boolalg.simplify_logic(self.exp)
+            goals = exp_goals(self._all_goals, self.exp)
+        self.goals =  goals
+        self.goals = self.goals if self.goals != None else self._all_goals
+    
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         np.random.rand(seed)
@@ -129,8 +171,10 @@ class GridWorld(gym.Env):
         assert self.action_space.contains(action)
         self.step_count += 1
         
-        if action == self.actions.done and (self.state[0] in self.T_positions):
-            return (self.w), self._get_reward(self.state, action), True, None
+        if action == self.actions.done and (self.position in self.Goals):
+            self.reached.add(self.Goals[self.position])
+            self.state = self.position, self.direction, frozenset(self.reached)
+            return self.state[-1], self._get_reward(self.state, action), True, None
         else:
             action_ = action #self.pertube_action(action)
             x, y = self.position     
@@ -156,6 +200,10 @@ class GridWorld(gym.Env):
                 elif action_ == self.actions.left:
                     self.direction = (self.direction+len(self.directions)-1)%len(self.directions)
 
+            if self.position in self.Doors and (x,y) in self.Doors and self.position!=(x,y) and self.Doors[self.position] in self.closed_doors:
+                self.reached.add(self.Doors[self.position])
+                self.closed_doors.remove(self.Doors[self.position])
+
             self.position = (x, y)
         
         reward = self._get_reward(self.state, action)
@@ -164,8 +212,8 @@ class GridWorld(gym.Env):
             # stay at old state if new coord is wall
             self.position = self.state[0]
         else:
-            self.state = self.position, self.direction
-        
+            self.state = self.position, self.direction, frozenset(self.reached)
+                
         return self.state, reward, self.done, None
     
     def get_neightbours(self, position):
@@ -177,28 +225,11 @@ class GridWorld(gym.Env):
                 positions.append(pos)
         return positions
 
-    def _get_dense_reward(self, position, action):
-        g = np.array([g for g in self.goals])
-        s = np.array([position]*len(g))
-        reward = 0.1*np.mean(np.exp(-0.25*np.linalg.norm(s-g, axis=1)**2))
-        return reward
-
     def _get_reward(self, state, action):      
         reward = 0
-        position = state[0]
-        if self.dense_rewards:
-            reward += self._get_dense_reward(position,action)
-
-        if position in self.T_positions and action == self.actions.done:
-            if self.dense_goal_rewards:
-                g = np.array([g for g in self.goals])
-                s = np.array([position]*len(g))
-                # steps = np.abs(s-g).max()
-                steps = np.abs(s-g).sum(axis=1).min()
-                rewards = np.linspace(self.goal_reward,self.step_reward,self.n-2)
-                reward += rewards[steps]
-            else:
-                reward += self.goal_reward if position in self.goals else self.step_reward
+        position, _, reached = state
+        if position in self.Goals and action == self.actions.done:
+            reward += self.goal_reward if reached in self.goals else self.step_reward
         else:
             reward += self.step_reward
         
@@ -215,13 +246,16 @@ class GridWorld(gym.Env):
     def reset(self):
         self.step_count = 0
         self.done = False
+        self.reached = set()
+        doors = set(list(self.Doors.values()))
+        self.closed_doors = doors
         if not self.start_position:
             idx = np.random.randint(len(self.possiblePositions))
             self.position = self.possiblePositions[idx]  # self.start_state_coord
         else:
             self.position = self.start_position
-        self.direction = self.directions.up # np.random.choice(self.directions)
-        self.state = self.position, self.direction
+        self.direction = self.start_direction if self.start_direction != None else np.random.choice(self.directions)
+        self.state = self.position, self.direction, frozenset(self.reached)
         return self.state
         
     def render(self, fig=None, ax=None, goal=None, mode='human', agent=False,
@@ -251,15 +285,25 @@ class GridWorld(gym.Env):
         vmin = -2 #0#
         ax.imshow(img, origin="upper", extent=[0, self.n, self.m, 0])
         
-        for x in range(self.n): # For showing rewards
+        for x in range(self.n):
             for y in range(self.m):
+                if (y,x) in self.Doors and self.Doors[(y,x)] in self.closed_doors:
+                    if (y,x+1) in self.Doors:
+                        self._draw_cell(ax, x, y, "R", color="#c2c2c2")
+                    if (y,x-1) in self.Doors:
+                        self._draw_cell(ax, x, y, "L", color="#c2c2c2")
+                    if (y+1,x) in self.Doors:
+                        self._draw_cell(ax, x, y, "D", color="#c2c2c2")
+                    if (y-1,x) in self.Doors:
+                        self._draw_cell(ax, x, y, "T", color="#c2c2c2")
+                    continue
                 cell = self.grid[y][x]
                 if cell == 0 or cell == 1:
                     continue
                 self._draw_cell(ax, x, y, cell)
         if agent:
-            for (x,y) in self.T_positions:
-                self._draw_action(ax, x, y, self.actions.done, color="#d3d3d3")
+            for (x,y) in self.Goals.keys():
+                self._draw_action(ax, x, y, self.actions.done, color="#c2c2c2")
             y, x = self.position
             self._draw_agent(ax, x, y, self.direction)
         
@@ -267,7 +311,7 @@ class GridWorld(gym.Env):
             cmap_ = cm.get_cmap(cmap)
             norm = colors.Normalize(vmin,vmax)
             for state, q in Q.items():
-                if state[1] == self.actions.up:
+                if state[1] == self.actions.up and state[2] == frozenset():
                     y, x = state[0]
                     for action in range(self.action_space.n):
                         v = (q[action]-vmin)/(vmax-vmin) # 
@@ -280,7 +324,7 @@ class GridWorld(gym.Env):
         if V: # For showing values
             v = np.zeros((self.m,self.n))+float("-inf")
             for state, val in V.items():
-                if state[1] == self.actions.up:
+                if state[1] == self.actions.up and state[2] == frozenset():
                     y, x = state[0]
                     v[y,x] = val  
             c = ax.imshow(v, origin="upper", cmap=cmap, extent=[0, self.n, self.m, 0])
@@ -289,7 +333,7 @@ class GridWorld(gym.Env):
                 
         if P:  # For drawing arrows of policy
             for state, action in P.items():
-                if state[1] == self.actions.up:
+                if state[1] == self.actions.up and state[2] == frozenset():
                     y, x = state[0]
                     self._draw_action(ax, x, y, action)
         
@@ -297,7 +341,7 @@ class GridWorld(gym.Env):
             cmap_ = cm.get_cmap(cmap)
             norm = colors.Normalize(vmin=self.rmin, vmax=self.rmax)
             for state, reward in R.items():
-                if state[1] == self.actions.up:
+                if state[1] == self.actions.up and state[2] == frozenset():
                     y, x = state[0]
                     for action in range(self.action_space.n):
                         r = (reward[self.actions.done]-self.rmin)/(self.rmax-self.rmin)
@@ -310,7 +354,7 @@ class GridWorld(gym.Env):
         if T:  # For showing transition probabilities of single action
             vprob = np.zeros((self.m,self.n))+float("-inf")
             for state, prob in T.items():
-                if state[1] == self.actions.up:
+                if state[1] == self.actions.up and state[2] == frozenset():
                     y, x = state[0]
                     vprob[y,x] = prob  
             c = plt.imshow(vprob, origin="upper", cmap=cmap, extent=[0, self.n, self.m, 0])
@@ -319,7 +363,7 @@ class GridWorld(gym.Env):
             
         if Ta:  # For showing transition probabilities of all actions
             for state, probs in Ta.items():
-                if state[1] == self.actions.up:
+                if state[1] == self.actions.up and state[2] == frozenset():
                     y, x = state[0]
                     for action in range(len(probs)):
                         if probs[action]:
@@ -554,10 +598,6 @@ class GridWorld(gym.Env):
                 for k in range(3):
                     if False and (i, j) == self.position:#start_position:
                         this_value = COLOURS[10][k]
-                    elif goal and (i, j) == (goal)[1]:
-                        this_value = COLOURS[20][k]
-                    elif [(i, j),(i, j)] in self.goals:
-                        this_value = COLOURS[3][k]
                     else:
                         cell = self.grid[i][j]
                         if cell == 0 or cell == 1:

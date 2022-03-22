@@ -4,6 +4,9 @@ from collections import defaultdict
 import itertools
 import matplotlib.pyplot as plt
 
+from sympy.logic import SOPform, boolalg
+from sympy import Symbol, symbols as Symbols
+
 
 #########################################################################################
 def shortest(MAP):
@@ -220,11 +223,11 @@ def Goal_Oriented_Q_learning(env, EV_init=None, EV_optimal=None, T_positions=Non
 
         stats["R"][k] += (gamma**t)*reward
         if done:
-            sMem[state] = 0
+            sMem[state_] = 0
             goals = list(sMem.keys())
 
         for goal_ in goals:
-            if state != goal_ and done:
+            if state_ != goal_ and done:
                 reward_ = rmin_
             else:
                 reward_ = reward
@@ -304,7 +307,7 @@ def Q_V(Q):
         V[state] = np.max(Q[state])
     return V
 
-def EQ_Q(EQ, goal=None, actions = 5):
+def EQ_Q(EQ, goal=None, actions = 4):
     Q = defaultdict(lambda: np.zeros(actions))
     for state in EQ:
         if goal:
@@ -315,7 +318,7 @@ def EQ_Q(EQ, goal=None, actions = 5):
     return Q
 
 
-def EQ_R(EQ, rmin=-0.1, actions = 5):
+def EQ_R(EQ, rmin=-0.1, actions = 4):
     R = {}
     for state in EQ:
         R[state] = np.zeros(actions) + rmin
@@ -340,7 +343,7 @@ def EQ_T(EQ_, state, action, goals=None, rmin=-0.1, gamma=1, amax=False):
     T = {goals[i]:P[i] for i in range(len(goals))}
     return T
 
-def EQ_Ta(EQ, state, goals=None, gamma=1, actions = 5):
+def EQ_Ta(EQ, state, goals=None, gamma=1, actions = 4):
     Ta = defaultdict(lambda: np.zeros(actions))
     for action in range(actions):
         probs = EQ_T(EQ, state, action, goals=goals, gamma=gamma, amax=True)
@@ -354,14 +357,14 @@ def save_EQ(EQ, path):
     data = [[s,[[g,EQ[s][g]] for g in EQ[s]]] for s in EQ]
     np.save(path,data, allow_pickle=True)
 
-def load_EQ(path, actions = 5):
+def load_EQ(path, actions = 4):
     data = np.load(path, allow_pickle=True)
     EQ = {s: defaultdict(lambda: np.zeros(actions), {g:v for (g,v) in gv}) for (s,gv) in data}
     EQ = defaultdict(lambda: defaultdict(lambda: np.zeros(actions)), EQ)
     return EQ
 
 #########################################################################################
-def EQMAX(EQ, rmax=2, actions = 5): #Estimating EQ_max
+def EQMAX(EQ, rmax=2, actions = 4): #Estimating EQ_max
     EQ_max = defaultdict(lambda: defaultdict(lambda: np.zeros(actions)))
     for s in list(EQ.keys()):
         for g in list(EQ[s].keys()):
@@ -372,7 +375,7 @@ def EQMAX(EQ, rmax=2, actions = 5): #Estimating EQ_max
                 EQ_max[s][g] = EQ[s][g] + c   
     return EQ_max
 
-def EQMIN(EQ, rmin=-0.1, actions = 5): #Estimating EQ_min
+def EQMIN(EQ, rmin=-0.1, actions = 4): #Estimating EQ_min
     EQ_min = defaultdict(lambda: defaultdict(lambda: np.zeros(actions)))
     for s in list(EQ.keys()):
         for g in list(EQ[s].keys()):
@@ -383,7 +386,7 @@ def EQMIN(EQ, rmin=-0.1, actions = 5): #Estimating EQ_min
                 EQ_min[s][g] = EQ[s][g] + c  
     return EQ_min
 
-def NOT(EQ, EQ_max=None, EQ_min=None, actions = 5):
+def NOT(EQ, EQ_max=None, EQ_min=None, actions = 4):
     EQ_max = EQ_max if EQ_max else EQMAX(EQ)
     EQ_min = EQ_min if EQ_min else EQMIN(EQ)
     EQ_not = defaultdict(lambda: defaultdict(lambda: np.zeros(actions)))
@@ -392,54 +395,183 @@ def NOT(EQ, EQ_max=None, EQ_min=None, actions = 5):
             EQ_not[s][g] = (EQ_max[s][g]+EQ_min[s][g]) - EQ[s][g]    
     return EQ_not
 
-def NEG(EQ, EQ_max=None, EQ_min=None, actions = 5):
-    EQ_max = EQ_max if EQ_max else EQ
-    EQ_min = EQ_min if EQ_min else defaultdict(lambda: defaultdict(lambda: np.zeros(actions)))
-    EQ_not = defaultdict(lambda: defaultdict(lambda: np.zeros(actions)))
-    for s in list(EQ_max.keys()):
-        for g in list(EQ_max[s].keys()):
-            EQ_not[s][g] = EQ_max[s][g] - EQ[s][g]
-    return EQ_not
-
-def OR(EQ1, EQ2, actions = 5):
+def OR(EQ1, EQ2, actions = 4):
     EQ = defaultdict(lambda: defaultdict(lambda: np.zeros(actions)))
     for s in list(set(list(EQ1.keys())) | set(list(EQ2.keys()))):
         for g in list(set(list(EQ1[s].keys())) | set(list(EQ2[s].keys()))):
             EQ[s][g] = np.max([EQ1[s][g],EQ2[s][g]],axis=0)
     return EQ
 
-def AND(EQ1, EQ2, actions = 5):
+def AND(EQ1, EQ2, actions = 4):
     EQ = defaultdict(lambda: defaultdict(lambda: np.zeros(actions)))
     for s in list(set(list(EQ1.keys())) | set(list(EQ2.keys()))):
         for g in list(set(list(EQ1[s].keys())) | set(list(EQ2[s].keys()))):
             EQ[s][g] = np.min([EQ1[s][g],EQ2[s][g]],axis=0)
     return EQ
 
+def exp_value(values, max_evf, min_evf, exp):   
+    evf =  min_evf
+    if exp:    
+        def convert(exp):
+            if type(exp) == Symbol:
+                compound = values[str(exp)]
+            elif type(exp) == boolalg.Or:
+                compound = convert(exp.args[0])
+                for sub in exp.args[1:]:
+                    compound = OR(compound, convert(sub))
+            elif type(exp) == boolalg.And:
+                compound = convert(exp.args[0])
+                for sub in exp.args[1:]:
+                    compound = AND(compound, convert(sub))
+            else:
+                compound = convert(exp.args[0])
+                compound = NOT(compound, max_evf, min_evf)
+            return compound        
+        evf = convert(exp)
+    return evf
 #########################################################################################
 
-def render_evf(env, evf):
-    def get_grid_evfs(env, evf):
-        evf_ = np.ones([env.n**2,env.n**2])
-        grid = np.zeros([env.n**2,env.n**2,4])
-        
-        for x in range(env.n):
-            for y in range(env.m):
-                if (x,y) not in env.walls:
-                    img = np.zeros([env.n, env.m, 4])
-                    for (i,j) in env.walls:
-                        img[i,j,-1] = 1.0
-                    grid[x*env.n:x*env.n+env.n,y*env.m:y*env.m+env.m] = img
+class EVF():
+    def __init__(self, action_space):
+        self.values = defaultdict(lambda: defaultdict(lambda: np.zeros(action_space.n)))
+    
+    def __call__(self, obs, goal):
+        return self.values[obs][goal]
 
-                    img = np.zeros([env.n, env.m])+float("-inf")
-                    for (i,j) in env.possiblePositions:
-                        state = ((i,j),env.directions.up)
-                        goal = ((x,y),env.directions.up)
-                        img[i,j] = evf[state][goal].max()
-                    evf_[x*env.n:x*env.n+env.n,y*env.m:y*env.m+env.m] = img
-                else:
-                    img = np.ones([env.n, env.m, 4])
-                    grid[x*env.n:x*env.n+env.n,y*env.m:y*env.m+env.m] = img
-        return grid, evf_
+    def reset(self, obs):
+        self.goals = list(self.values[obs].keys())
+        self.goal = self._get_goal(obs)
+
+    def get_value(self, obs):
+        return self(obs, self.goal).max()
+
+    def get_action(self, obs):
+        return self(obs, self.goal).argmax()
+
+    def _get_goal(self, obs):
+        values = [self(obs, goal).max() for goal in self.goals]
+        values = np.array(values)
+        idx = np.random.choice(np.flatnonzero(values == values.max()))
+        return self.goals[idx]
+
+class ComposedEVF():
+    def __init__(self, evfs, max_evf=None, min_evf=None, compose="or"):
+        super(ComposedEVF, self).__init__()
+        self.compose = compose
+        self.max_evf = max_evf
+        self.min_evf = min_evf
+        self.evfs = evfs
+        self.goals = None
+    
+    def __call__(self, obs, goal):
+        qs = [self.evfs[i](obs, goal) for i in range(len(self.evfs))]
+        qs = np.stack(tuple(qs), 0)
+        if self.compose=="or":
+            q = qs.max(0)
+        elif self.compose=="and":
+            q = qs.min(0)
+        else: #not
+            q = (self.max_evf(obs, goal)+self.min_evf(obs, goal)) - qs[0]
+        return q
+
+    def reset(self, obs):
+        self.goal = self._get_goal(obs)
+
+    def get_value(self, obs):
+        return self(obs, self.goal).max()
+
+    def get_action(self, obs):
+        return self(obs, self.goal).argmax()
+
+    def _get_goal(self, obs):
+        values = [self(obs, goal).max() for goal in self.goals]
+        values = np.array(values)
+        idx = np.random.choice(np.flatnonzero(values == values.max()))
+        return self.goals[idx]
+
+def OR(evfs):
+    return ComposedEVF(evfs, compose="or")
+
+def AND(evfs):
+    return ComposedEVF(evfs, compose="and")
+
+def NOT(evf, max_evf, min_evf):
+    return ComposedEVF([evf], max_evf=max_evf, min_evf=min_evf, compose="not")
+
+def exp_evf(values, max_evf, min_evf, exp):   
+    evf =  min_evf
+    states = list(min_evf.values.keys())    
+    goals  = list(min_evf.values[states[0]].keys())
+    if exp:    
+        def convert(exp):
+            if type(exp) == Symbol:
+                compound = values[str(exp)]
+            elif type(exp) == boolalg.Or:
+                compound = convert(exp.args[0])
+                for sub in exp.args[1:]:
+                    compound = OR([compound, convert(sub)])
+            elif type(exp) == boolalg.And:
+                compound = convert(exp.args[0])
+                for sub in exp.args[1:]:
+                    compound = AND([compound, convert(sub)])
+            else:
+                compound = convert(exp.args[0])
+                compound = NOT(compound, max_evf, min_evf)
+            return compound        
+        evf = convert(exp)
+    
+    evf.goals = goals
+    return evf
+
+def load(env, path):
+    data = np.load(path, allow_pickle=True)
+    evf = EVF(env.action_space)
+    for (s, gv) in data:
+        for (g,v) in gv:
+            evf.values[s][g] = v
+    return evf
+#########################################################################################
+
+def render_evf(env, evf, location_goals=False, figsize=(20, 20)):
+    if location_goals:
+        def get_grid_evfs(env, evf):
+            evf_ = np.ones([env.n**2,env.n**2])
+            grid = np.zeros([env.n**2,env.n**2,4])
+            
+            for x in range(env.n):
+                for y in range(env.m):
+                    if (x,y) not in env.walls:
+                        img = np.zeros([env.n, env.m, 4])
+                        for (i,j) in env.walls:
+                            img[i,j,-1] = 1.0
+                        grid[x*env.n:x*env.n+env.n,y*env.m:y*env.m+env.m] = img
+
+                        img = np.zeros([env.n, env.m])+float("-inf")
+                        for (i,j) in env.possiblePositions:
+                            state = ((i,j),env.directions.up, frozenset())
+                            goal = ((x,y),env.directions.up)
+                            img[i,j] = evf[state][goal].max()
+                        evf_[x*env.n:x*env.n+env.n,y*env.m:y*env.m+env.m] = img
+                    else:
+                        img = np.ones([env.n, env.m, 4])
+                        grid[x*env.n:x*env.n+env.n,y*env.m:y*env.m+env.m] = img
+            return grid, evf_
+    else:
+        n_goals = len(env.all_goals)
+        figsize=(20, 20)
+        def get_grid_evfs(env, evf):
+            evf_ = np.ones([env.n,env.n*n_goals])
+            grid = np.zeros([env.n,env.n*n_goals,4])
+            
+            for g in range(n_goals):
+                goal = frozenset(env.all_goals[g])
+                img = np.zeros([env.n, env.m])+float("-inf")
+                for (i,j) in env.possiblePositions:
+                    state = ((i,j),env.directions.up, frozenset())
+                    img[i,j] = evf[state][goal].max()
+                evf_[:,g*env.m:g*env.m+env.m] = img
+            return grid, evf_
+
 
     #####################################################
 
@@ -447,7 +579,7 @@ def render_evf(env, evf):
     # evf = evf[env.n:-env.n,env.m:-env.m]
     # grid = grid[env.n:-env.n,env.m:-env.m]
 
-    fig = plt.figure(1, figsize=(20, 20), dpi=60, facecolor='w', edgecolor='k')
+    fig = plt.figure(1, figsize=figsize, dpi=60, facecolor='w', edgecolor='k')
     plt.clf()
     plt.xticks([])
     plt.yticks([])

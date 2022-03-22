@@ -5,6 +5,19 @@ from GridWorld import *
 from library import *
 import matplotlib.pyplot as plt
 
+from sympy.logic import SOPform, boolalg
+from sympy import Symbol, symbols as Symbols
+
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--exp',
+    default="",
+    help="Task expression"
+)
+args = parser.parse_args()
+
 #servers = ["localhost"]
 servers = ["192.168.1.2"]
 ports = [12007]
@@ -16,32 +29,31 @@ TURN_LEFT = [0,0,0,0,0,TURN_MAGNITUDE]
 TURN_RIGHT = [0,0,0,0,0,-TURN_MAGNITUDE]
 SLEEP_TIME = 2
 
+start_position = (9,1)
+start_direction = Directions.up
+exp = args.exp.replace("t", "(nw | ne)")
+exp = exp.replace("l", "(nw | sw)")
+env = GridWorld(exp = exp, start_position=start_position, start_direction=start_direction)
+print("Expression: ", env.exp)
+print('Goals: ',len(env.goals))
 
-MAP =   "LT T T T RT LT T T T RT\n" \
-        "L 0 0 0 R L 0 0 0 R\n" \
-        "L 0 0 0 0 0 0 0 0 R\n" \
-        "L 0 0 0 R L 0 0 0 R\n" \
-        "LD D 0 D RD LD D 0 D RD\n" \
-        "LT T 0 T RT LT T 0 T RT\n" \
-        "L 0 0 0 R L 0 0 0 R\n" \
-        "L 0 0 0 0 0 0 0 0 R\n" \
-        "L 0 0 0 R L 0 0 0 R\n" \
-        "LD D D D RD LD D D D RD"
-
-start_position = (8,1)
-T_positions = [(2,2), (2,7), (7,7), (7,2)]
-env = GridWorld(MAP=MAP, T_positions=T_positions, start_position=start_position)
-
-MAX = load_EQ("models/max.npy")
-MIN = load_EQ("models/min.npy")
-A = load_EQ("models/top.npy")
-B = load_EQ("models/left.npy")
+### Loading learned skills
+print("Loading learned skills")
+values = {}
+max_evf = load(env, "models/max.npy")
+min_evf = load(env, "models/min.npy")
+values['t'] = load(env, "models/top.npy")
+values['l']  = load(env, "models/left.npy")
+values['n']  = load(env, "models/n.npy")
+values['s']  = load(env, "models/s.npy")
+values['e']  = load(env, "models/e.npy")
+values['w']  = load(env, "models/w.npy")
 
 ### Zero-shot composition
-NEG = lambda EQ: NOT(EQ, EQ_max=MAX, EQ_min=MIN)
-XOR = lambda EQ1, EQ2: OR(AND(EQ1,NEG(EQ2)),AND(EQ2,NEG(EQ1)))
-
-P=EQ_P(AND(A,NOT(B)))
+print("Zero-shot composition")
+exp = sympify(args.exp, evaluate=False)
+exp = boolalg.simplify_logic(exp)
+evf = exp_evf(values, max_evf, min_evf, exp)
 
 max_episodes = 1
 max_steps = 50
@@ -49,10 +61,12 @@ max_steps = 50
 def run():
     for episode in range(max_episodes):
         state = env.reset()
+        evf.reset(state)
         for step in range(max_steps):
+            # print(evf.get_value(state))
             env.render(agent=True)
             plt.pause(0.00001)
-            action = P[state]
+            action = evf.get_action(state)
             state, reward, done, _ = env.step(action)
 
             if action == env.actions.up:
