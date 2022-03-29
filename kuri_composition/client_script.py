@@ -13,7 +13,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '--exp',
-    default="",
+    default="t&~l",
     help="Task expression"
 )
 args = parser.parse_args()
@@ -64,23 +64,28 @@ def run():
         evf.reset(state)
         for step in range(max_steps):
             # print(evf.get_value(state))
+            print(step)
             env.render(agent=True)
             plt.pause(0.00001)
             action = evf.get_action(state)
             state, reward, done, _ = env.step(action)
-
+            
             if action == env.actions.up:
-                limitSet = FORWARD
+                limitSet = FORWARD.copy()
+                limitSet.append(float(evf.get_value(state)))
             elif action == env.actions.left:
-                limitSet = TURN_LEFT
+                limitSet = TURN_LEFT.copy()
+                limitSet.append(float(evf.get_value(state)))
             elif action == env.actions.right:
-                limitSet = TURN_RIGHT
+                limitSet = TURN_RIGHT.copy()
+                limitSet.append(float(evf.get_value(state)))
             elif action == env.actions.done:
                 break
             else:
                 print("Command not recognised. Must be w, a, d or q")
                 continue
 
+            print('sending: ', limitSet)
             client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
             results = client.get_replies(sockets[0])
             time.sleep(SLEEP_TIME)
