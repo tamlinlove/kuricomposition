@@ -27,6 +27,9 @@ TURN_MAGNITUDE = 1.52
 FORWARD = [0.3,0,0,0,0,0]
 TURN_LEFT = [0,0,0,0,0,TURN_MAGNITUDE]
 TURN_RIGHT = [0,0,0,0,0,-TURN_MAGNITUDE]
+HEAD_POSITION_STRAIGHT = [0,0]
+HEAD_POSITION_LEFT = [1,0]
+HEAD_POSITION_RIGHT = [-1,0]
 SLEEP_TIME = 1
 
 start_position = (9,1)
@@ -73,12 +76,15 @@ def run():
             if action == env.actions.up:
                 limitSet = FORWARD.copy()
                 limitSet.append(float(evf.get_value(state)))
+                limitSet.append(HEAD_POSITION_STRAIGHT)
             elif action == env.actions.left:
                 limitSet = TURN_LEFT.copy()
                 limitSet.append(float(evf.get_value(state)))
+                limitSet.append(HEAD_POSITION_LEFT)
             elif action == env.actions.right:
                 limitSet = TURN_RIGHT.copy()
                 limitSet.append(float(evf.get_value(state)))
+                limitSet.append(HEAD_POSITION_RIGHT)
             elif action == env.actions.done:
                 break
             else:
