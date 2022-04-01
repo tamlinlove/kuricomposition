@@ -27,7 +27,7 @@ TURN_MAGNITUDE = 1.52
 FORWARD = [0.3,0,0,0,0,0]
 TURN_LEFT = [0,0,0,0,0,TURN_MAGNITUDE]
 TURN_RIGHT = [0,0,0,0,0,-TURN_MAGNITUDE]
-SLEEP_TIME = 2
+SLEEP_TIME = 1
 
 start_position = (9,1)
 start_direction = Directions.up
