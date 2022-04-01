@@ -23,14 +23,22 @@ servers = ["192.168.1.2"]
 ports = [12007]
 sockets = [0]
 
-TURN_MAGNITUDE = 1.52
+TURN_MAGNITUDE = 1.48
+NO_MOVEMENT = [0,0,0,0,0,0]
 FORWARD = [0.3,0,0,0,0,0]
 TURN_LEFT = [0,0,0,0,0,TURN_MAGNITUDE]
 TURN_RIGHT = [0,0,0,0,0,-TURN_MAGNITUDE]
 HEAD_POSITION_STRAIGHT = [0,0]
 HEAD_POSITION_LEFT = [1,0]
 HEAD_POSITION_RIGHT = [-1,0]
-SLEEP_TIME = 1
+HEAD_POSITION_DOWN = [0,1]
+HEAD_POSITION_UP = [0,-1]
+EYES_CLOSED = 1
+EYES_OPEN = 0
+EYES_SMILE = -0.3
+SLEEP_TIME = 1.2
+
+cur_led = 9
 
 start_position = (9,1)
 start_direction = Directions.up
@@ -61,6 +69,36 @@ evf = exp_evf(values, max_evf, min_evf, exp)
 max_episodes = 1
 max_steps = 50
 
+def reset_behaviour():
+    print("Running reset behaviour")
+    limitSet = NO_MOVEMENT.copy()
+    limitSet.append(cur_led)
+    limitSet.append(HEAD_POSITION_DOWN)
+    limitSet.append(EYES_CLOSED)
+    client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
+    results = client.get_replies(sockets[0])
+    time.sleep(2)
+
+def startup_behaviour():
+    print("Running startup behaviour")
+    limitSet = NO_MOVEMENT.copy()
+    limitSet.append(cur_led)
+    limitSet.append(HEAD_POSITION_STRAIGHT)
+    limitSet.append(EYES_OPEN)
+    client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
+    results = client.get_replies(sockets[0])
+    time.sleep(2)
+
+def end_behaviour():
+    print("Running end behaviour")
+    limitSet = NO_MOVEMENT.copy()
+    limitSet.append(cur_led)
+    limitSet.append(HEAD_POSITION_UP)
+    limitSet.append(EYES_SMILE)
+    client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
+    results = client.get_replies(sockets[0])
+    time.sleep(2)
+
 def run():
     for episode in range(max_episodes):
         state = env.reset()
@@ -77,14 +115,20 @@ def run():
                 limitSet = FORWARD.copy()
                 limitSet.append(float(evf.get_value(state)))
                 limitSet.append(HEAD_POSITION_STRAIGHT)
+                limitSet.append(EYES_OPEN)
+                cur_led = float(evf.get_value(state))
             elif action == env.actions.left:
                 limitSet = TURN_LEFT.copy()
                 limitSet.append(float(evf.get_value(state)))
                 limitSet.append(HEAD_POSITION_LEFT)
+                limitSet.append(EYES_OPEN)
+                cur_led = float(evf.get_value(state))
             elif action == env.actions.right:
                 limitSet = TURN_RIGHT.copy()
                 limitSet.append(float(evf.get_value(state)))
                 limitSet.append(HEAD_POSITION_RIGHT)
+                limitSet.append(EYES_OPEN)
+                cur_led = float(evf.get_value(state))
             elif action == env.actions.done:
                 break
             else:
@@ -101,7 +145,9 @@ def run():
 
 if __name__ == "__main__":
     client.create_connections(servers[0], ports[0], sockets[0])
-
+    reset_behaviour()
+    startup_behaviour()
     run()
+    end_behaviour()
     # closing connections to servers
     client.close_connections(sockets[0])
