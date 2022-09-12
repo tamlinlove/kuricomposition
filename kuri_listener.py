@@ -109,23 +109,28 @@ if __name__ == '__main__':
     serverSocket.listen(1)
     print("The server is ready to receive")
     while 1:
-        connectionSocket, addr = serverSocket.accept() #connecting to
-        while True:
-            pickledLimits = connectionSocket.recv(2048)#Recieve data in Pickle form. 1024
-            limits = pickle.loads(pickledLimits)
-            print("Received: ", limits)
-            x, y, z, ax, ay, az, value, hpos, epos = limits
-            print("move and value: ({},{},{},{},{},{},{})".format(x, y, z, ax, ay, az,value))
-            toSend = [1, 21]
-            connectionSocket.send(pickle.dumps(toSend))
-            
-            try:
-                eye_move(epub, epos)
-                head_move(hpub, hpos)
-                move(vpub, x, y, z, ax, ay, az)
-                update_light(lpub, value)
+
+        try:
+
+            connectionSocket, addr = serverSocket.accept() #connecting to
+            while True:
+                pickledLimits = connectionSocket.recv(2048)#Recieve data in Pickle form. 1024
+                limits = pickle.loads(pickledLimits)
+                print("Received: ", limits)
+                x, y, z, ax, ay, az, value, hpos, epos = limits
+                print("move and value: ({},{},{},{},{},{},{})".format(x, y, z, ax, ay, az,value))
                 toSend = [1, 21]
                 connectionSocket.send(pickle.dumps(toSend))
-            except rospy.ROSInterruptException: pass
-        
-        connectionSocket.close()#Closing connections.
+                
+                try:
+                    eye_move(epub, epos)
+                    head_move(hpub, hpos)
+                    move(vpub, x, y, z, ax, ay, az)
+                    update_light(lpub, value)
+                    toSend = [1, 21]
+                    connectionSocket.send(pickle.dumps(toSend))
+                except rospy.ROSInterruptException: pass
+            
+            connectionSocket.close()#Closing connections.
+        except:
+            pass

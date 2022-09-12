@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import cv2
 import math
 
-image_dir = "images/"
+image_dir = "calibration/"
 
-CAMERA_NUMBER = 0
+CAMERA_NUMBER = 1
 
 def get_angle(back,front):
     #horizontal = (front[0],back[1])
@@ -25,10 +25,9 @@ def get_angle(back,front):
     return angle
 
 def get_colour_images():
-    red = plt.imread(image_dir+"red.png")
-    green = plt.imread(image_dir+"green.png")
-    blue = plt.imread(image_dir+"blue.png")
-    return [red,green,blue]
+    front = plt.imread(image_dir+"front.png")
+    back = plt.imread(image_dir+"back.png")
+    return [front,back]
 
 def get_colour_averages():
     colour_images = get_colour_images()
@@ -38,20 +37,30 @@ def get_colour_averages():
         avs.append(av[0:3])
     return avs
 
-def find_centres(image,tol=0.05,draw=False,frame=None):
-    averages = get_colour_averages()
-    red_upper = averages[0]+np.ones(3)*tol
-    red_lower = averages[0]-np.ones(3)*tol
-    green_upper = averages[1]+np.ones(3)*tol
-    green_lower = averages[1]-np.ones(3)*tol
-    blue_upper = averages[2]+np.ones(3)*tol
-    blue_lower = averages[2]-np.ones(3)*tol
+def detect_single_colour(image,upper,lower):
+    mask = cv2.inRange(image, lower, upper)
+    res = cv2.bitwise_and(image,image, mask= mask)
+    pix = np.where(mask==255)
+    pixels = np.array([pix[0],pix[1]])
+    centre = np.mean(pixels,axis=1)
+    return centre
 
-    upper_bounds = [red_upper,green_upper,blue_upper]
-    lower_bounds = [red_lower,green_lower,blue_lower]
+def find_centres(image,tol=0.05,draw=False,frame=None,radius=30):
+    averages = get_colour_averages()
+    plt.imsave("front_average.png",np.ones((100,100,3))*averages[0].reshape(1,1,3))
+    plt.imsave("back_average.png",np.ones((100,100,3))*averages[1].reshape(1,1,3))
+    plt.close()
+    front_upper = averages[0]+np.ones(3)*tol
+    front_lower = averages[0]-np.ones(3)*tol
+    back_upper = averages[1]+np.ones(3)*tol
+    back_lower = averages[1]-np.ones(3)*tol
+
+    upper_bounds = [front_upper,back_upper]
+    lower_bounds = [front_lower,back_lower]
 
     centres = []
 
+    '''
     for i in range(len(averages)):
         mask = cv2.inRange(image, lower_bounds[i], upper_bounds[i])
         res = cv2.bitwise_and(image,image, mask= mask)
@@ -59,6 +68,27 @@ def find_centres(image,tol=0.05,draw=False,frame=None):
         pixels = np.array([pix[0],pix[1]])
         centre = np.mean(pixels,axis=1)
         centres.append(centre)
+    '''
+
+    start_index = 0
+    end_index = 1
+
+    # First, detect front which is distinct
+    centre = detect_single_colour(image,upper_bounds[start_index],lower_bounds[start_index])
+    centres.append(centre)
+
+    # Now, search for back within a radius of front
+    centre_int = [int(centre[1]),int(centre[0])]
+    start_point = (centre_int[0]-radius,centre_int[1]-radius)
+    end_point = (centre_int[0]+radius,centre_int[1]+radius)
+    cv2.rectangle(frame,start_point,end_point,(0,255,0),2)
+
+    sub_image = image[centre_int[1]-radius:centre_int[1]+radius,centre_int[0]-radius:centre_int[0]+radius]
+    centre = detect_single_colour(sub_image,upper_bounds[end_index],lower_bounds[end_index])
+    centre = [centre[0]+centre_int[1]-radius,centre[1]+centre_int[0]-radius]
+    centres.append(centre)
+
+
 
     if draw and frame is not None:
         drawOnFeed(frame,centres,averages)
@@ -107,6 +137,36 @@ def get_coordinates(centres):
 def display_text(frame,text,position,font=cv2.FONT_HERSHEY_SIMPLEX,fontScale = 1,fontColor = (255,255,255),lineType = 2):
     cv2.putText(frame,text, position, font, fontScale,fontColor,lineType)
 
+def get_position(image):
+    try:
+        centres = find_centres(image,tol=0.1)
+        coordinates = get_coordinates(centres)
+
+        front = coordinates[0]
+        back = coordinates[1]
+        return front,back
+    except:
+        return [(0,0),(0,0)]
+    
+
+def crop_image(image):
+    image = image[:,80:-1]
+    return image
+
+def update_image(cap):
+    image,frame = get_frame(cap)
+    #image = crop_image(image)
+    return image,frame
+
+def draw_frame(frame,draw_cirlces=None):
+
+    if draw_cirlces is not None:
+        for point in draw_cirlces:
+            cv2.circle(frame,draw_cirlces[point],5,(0,0,0),2)
+
+    cv2.imshow('frame',frame)
+
+
 def simple_localisation_test():
 
     cap =  cap = cv2.VideoCapture(CAMERA_NUMBER)
@@ -115,13 +175,17 @@ def simple_localisation_test():
     while True:
         try:
             image,frame = get_frame(cap)
-            centres = find_centres(image,tol=0.1,draw=False,frame=frame)
+            image = image[:,80:-1]
+            frame = frame[:,80:-1]
+            #cv2.rectangle(frame,(80,0),(600,600),(0,0,255),2)
+            centres = find_centres(image,tol=0.1,draw=True,frame=frame)
             coordinates = get_coordinates(centres)
-        except:
+        except Exception as e:
+            #print(e)
             pass
 
-        front = coordinates[0] # RED
-        back = coordinates[1] # GREEN
+        front = coordinates[0]
+        back = coordinates[1]
 
         cv2.arrowedLine(frame,back,front,color=(0,0,0),thickness=2)
 
@@ -186,7 +250,7 @@ def qr_localiser():
 
 
 def take_picture(directory):
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(CAMERA_NUMBER)
     ret, frame = cap.read() # Capture frame-by-frame
     print("Saving to {}".format(directory))
     cv2.imwrite(directory, frame)
@@ -195,6 +259,6 @@ def take_picture(directory):
 
 if __name__ == "__main__":
     #camera_test(draw_colours=True)
-    #take_picture(image_dir+'calibration.png')
-    #simple_localisation_test()
-    qr_localiser()
+    take_picture(image_dir+'calibration.png')
+    simple_localisation_test()
+    #qr_localiser()
