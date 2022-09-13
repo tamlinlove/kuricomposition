@@ -5,7 +5,7 @@ import math
 
 image_dir = "calibration/"
 
-CAMERA_NUMBER = 1
+CAMERA_NUMBER = 0
 
 def get_angle(back,front):
     #horizontal = (front[0],back[1])
@@ -134,10 +134,10 @@ def get_coordinates(centres):
     return coords
 
 
-def display_text(frame,text,position,font=cv2.FONT_HERSHEY_SIMPLEX,fontScale = 1,fontColor = (255,255,255),lineType = 2):
+def display_text(frame,text,position=(40,40),font=cv2.FONT_HERSHEY_SIMPLEX,fontScale = 1,fontColor = (255,255,255),lineType = 2):
     cv2.putText(frame,text, position, font, fontScale,fontColor,lineType)
 
-def get_position(image):
+def get_position(image,front=(0,0),back=(0,0)):
     try:
         centres = find_centres(image,tol=0.1)
         coordinates = get_coordinates(centres)
@@ -146,7 +146,7 @@ def get_position(image):
         back = coordinates[1]
         return front,back
     except:
-        return [(0,0),(0,0)]
+        return front,back
     
 
 def crop_image(image):
@@ -257,8 +257,53 @@ def take_picture(directory):
 
     cap.release()
 
+def get_all_state_coords(top_left,bottom_right):
+    X_OFFSET = top_left[0]
+    Y_OFFSET = top_left[1]
+    X_INTERVAL = (bottom_right[0]-top_left[0])//9
+    Y_INTERVAL = (bottom_right[1]-top_left[1])//9
+
+
+
+    points = []
+    for i in range(10):
+        for j in range(10):
+            points.append((X_OFFSET+i*X_INTERVAL,Y_OFFSET+j*Y_INTERVAL))
+    return points
+
+
+def draw_states():
+    cap =  cap = cv2.VideoCapture(CAMERA_NUMBER)
+
+    while True:
+        image,frame = get_frame(cap)
+
+        top_left = (80,10)
+        bottom_right = (620,460)
+
+        cv2.rectangle(frame,top_left,bottom_right,(0,255,0),2)
+
+        points = get_all_state_coords(top_left,bottom_right)
+        for point in points:
+            cv2.circle(frame,point,5,(0,0,255),1)
+
+        #for i in range(10):
+        #    cv2.line(frame,(0,i*(480//9)),(640,i*(480//9)),(255,0,0),2)
+
+        cv2.imshow('frame',frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+
+
 if __name__ == "__main__":
     #camera_test(draw_colours=True)
-    take_picture(image_dir+'calibration.png')
-    simple_localisation_test()
+    #take_picture(image_dir+'calibration.png')
+    #simple_localisation_test()
     #qr_localiser()
+    draw_states()
