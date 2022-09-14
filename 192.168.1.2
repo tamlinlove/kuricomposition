@@ -2,7 +2,7 @@
 from socket import *
 import rospy
 from geometry_msgs.msg import Twist
-#from mobile_base_driver.msg import ChestLeds
+from mobile_base_driver.msg import ChestLeds
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 import time
 import pickle #Pickle used for data transfering.
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     #Set up ros stuff
     rospy.init_node('robot_cleaner',anonymous=True)
     vpub = rospy.Publisher('/mobile_base/commands/velocity',Twist,queue_size=100)
-    #lpub = rospy.Publisher("/mobile_base/commands/chest_leds",ChestLeds, latch=True, queue_size=1)
+    lpub = rospy.Publisher("/mobile_base/commands/chest_leds",ChestLeds, latch=True, queue_size=1)
     hpub = rospy.Publisher('/head_controller/command',JointTrajectory,queue_size=100)
     epub = rospy.Publisher('/eyelids_controller/command',JointTrajectory,queue_size=100)
     #time.sleep(1)
@@ -123,10 +123,10 @@ if __name__ == '__main__':
                 connectionSocket.send(pickle.dumps(toSend))
                 
                 try:
-                    #eye_move(epub, epos)
-                    #head_move(hpub, hpos)
+                    eye_move(epub, epos)
+                    head_move(hpub, hpos)
                     move(vpub, x, y, z, ax, ay, az)
-                    #update_light(lpub, value)
+                    update_light(lpub, value)
                     toSend = [1, 21]
                     connectionSocket.send(pickle.dumps(toSend))
                 except rospy.ROSInterruptException: pass
