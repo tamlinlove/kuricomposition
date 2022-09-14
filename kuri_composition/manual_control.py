@@ -72,6 +72,12 @@ parser.add_argument(
     default=None,
     help="Task expression"
 )
+parser.add_argument(
+    "--seed",
+    type=int,
+    help="random seed to generate the environment with",
+    default=None
+)
 
 args = parser.parse_args()
 env = GridWorld(exp=args.exp)

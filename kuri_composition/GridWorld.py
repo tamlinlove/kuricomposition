@@ -110,13 +110,12 @@ class GridWorld(gym.Env):
         self.action_space = spaces.Discrete(len(self.actions))
 
         ##################### Goals
-        self.Goals = {}
+        self.GoalLocations = {}
         self.Doors = {}
         self.closed_doors = []
-        self.reached = set()
 
         ## 4 goal locations at the center of rooms
-        self.Goals = {(2,7):"ne", (7,7):"se", (7,2):"sw", (2,2):"nw"}
+        self.GoalLocations = {(2,7):"ne", (7,7):"se", (7,2):"sw", (2,2):"nw"}
         
         self.has_doors = has_doors
         if self.has_doors:
@@ -128,13 +127,13 @@ class GridWorld(gym.Env):
             self.Doors[(5,2)] = "w"
             self.Doors[(4,7)] = "e"
             self.Doors[(5,7)] = "e"
-        doors = set(list(self.Doors.values()))
-        self.closed_doors = doors
+        self.doors = set(list(self.Doors.values()))
+        self.closed_doors = self.doors.copy()
         if self.has_doors:
-            self.all_goals = chain.from_iterable(combinations(doors, r) for r in range(len(self.Doors)+1))
-            self.all_goals = list(frozenset(list(goal[0])+[goal[1]]) for goal in product(self.all_goals,self.Goals.values()))
+            self.all_goals = chain.from_iterable(combinations(self.doors, r) for r in range(len(self.Doors)+1))
+            self.all_goals = list(frozenset(list(goal[0])+[goal[1]]) for goal in product(self.all_goals,self.GoalLocations.values()))
         else:
-            self.all_goals = [frozenset((r,)) for r in self.Goals.values()]
+            self.all_goals = [frozenset((r,)) for r in self.GoalLocations.values()]
         self._all_goals = frozenset(self.all_goals)
 
         self.exp = None
@@ -171,10 +170,8 @@ class GridWorld(gym.Env):
         assert self.action_space.contains(action)
         self.step_count += 1
         
-        if action == self.actions.done and (self.position in self.Goals):
-            self.reached.add(self.Goals[self.position])
-            self.state = self.position, self.direction, frozenset(self.reached)
-            return self.state[-1], self._get_reward(self.state, action), True, None
+        if action == self.actions.done and (self.position in self.GoalLocations):
+            return self.state[0::2], self._get_reward(self.state, action), True, None
         else:
             action_ = action #self.pertube_action(action)
             x, y = self.position     
@@ -201,7 +198,6 @@ class GridWorld(gym.Env):
                     self.direction = (self.direction+len(self.directions)-1)%len(self.directions)
 
             if self.position in self.Doors and (x,y) in self.Doors and self.position!=(x,y) and self.Doors[self.position] in self.closed_doors:
-                self.reached.add(self.Doors[self.position])
                 self.closed_doors.remove(self.Doors[self.position])
 
             self.position = (x, y)
@@ -212,7 +208,7 @@ class GridWorld(gym.Env):
             # stay at old state if new coord is wall
             self.position = self.state[0]
         else:
-            self.state = self.position, self.direction, frozenset(self.reached)
+            self.state = self.position, self.direction, frozenset(self.doors-self.closed_doors)
                 
         return self.state, reward, self.done, None
     
@@ -227,9 +223,11 @@ class GridWorld(gym.Env):
 
     def _get_reward(self, state, action):      
         reward = 0
-        position, _, reached = state
-        if position in self.Goals and action == self.actions.done:
-            reward += self.goal_reward if reached in self.goals else self.step_reward
+        position, _, open_doors = state
+        if position in self.GoalLocations and action == self.actions.done:
+            goal = set(open_doors) 
+            goal.add(self.GoalLocations[position])
+            reward += self.goal_reward if goal in self.goals else self.step_reward
         else:
             reward += self.step_reward
         
@@ -246,16 +244,15 @@ class GridWorld(gym.Env):
     def reset(self):
         self.step_count = 0
         self.done = False
-        self.reached = set()
-        doors = set(list(self.Doors.values()))
-        self.closed_doors = doors
+        self.closed_doors = self.doors.copy()
+        # self.closed_doors.remove("s")
         if not self.start_position:
             idx = np.random.randint(len(self.possiblePositions))
             self.position = self.possiblePositions[idx]  # self.start_state_coord
         else:
             self.position = self.start_position
         self.direction = self.start_direction if self.start_direction != None else np.random.choice(self.directions)
-        self.state = self.position, self.direction, frozenset(self.reached)
+        self.state = self.position, self.direction, frozenset(self.doors-self.closed_doors)
         return self.state
         
     def render(self, fig=None, ax=None, goal=None, mode='human', agent=False,
@@ -302,7 +299,7 @@ class GridWorld(gym.Env):
                     continue
                 self._draw_cell(ax, x, y, cell)
         if agent:
-            for (x,y) in self.Goals.keys():
+            for (x,y) in self.GoalLocations.keys():
                 self._draw_action(ax, x, y, self.actions.done, color="#c2c2c2")
             y, x = self.position
             self._draw_agent(ax, x, y, self.direction)
