@@ -20,45 +20,35 @@ print(len(env.possiblePositions), len(env.goals), len(env.possiblePositions)*len
 ### Loading learned EVFs
 print("Loading learned EVFs")
 
-R1, stats = np.load('data/EQ_1.npy', allow_pickle=True)
+R1, stats = np.load('models/r1.npy', allow_pickle=True)
 R1 = EQ_load(R1)
-R2, stats = np.load('data/EQ_2.npy', allow_pickle=True)
+R2, stats = np.load('models/r2.npy', allow_pickle=True)
 R2 = EQ_load(R2)
-R3, stats = np.load('data/EQ_3.npy', allow_pickle=True)
+R3, stats = np.load('models/r3.npy', allow_pickle=True)
 R3 = EQ_load(R3)
-R4, stats = np.load('data/EQ_4.npy', allow_pickle=True)
+R4, stats = np.load('models/r4.npy', allow_pickle=True)
 R4 = EQ_load(R4)
+DN, stats = np.load('models/dn.npy', allow_pickle=True)
+DN = EQ_load(DN)
+DE, stats = np.load('models/de.npy', allow_pickle=True)
+DE = EQ_load(DE)
+DS, stats = np.load('models/ds.npy', allow_pickle=True)
+DS = EQ_load(DS)
+DW, stats = np.load('models/dw.npy', allow_pickle=True)
+DW = EQ_load(DW)
 
-max_, stats = np.load('data/EQ_max.npy', allow_pickle=True)
+max_, stats = np.load('models/max.npy', allow_pickle=True)
 max_ = EQ_load(max_)
-min_, stats = np.load('data/EQ_min.npy', allow_pickle=True)
+min_, stats = np.load('models/min.npy', allow_pickle=True)
 min_ = EQ_load(min_)
 NEG = lambda EQ: NOT(EQ,EQ_max=max_,EQ_min=min_)
 
-### Visualize values and policies
+# ### Visualize values and policies
 # print("Visualize values and policies")
-
-# render_learned(env, P=EQ_P(max_), V = EQ_V(max_))
-# plt.show()
-# render_learned(env, P=EQ_P(min_), V = EQ_V(min_))
-# plt.show()
 
 # render_learned(env, P=EQ_P(R1), V = EQ_V(R1))
 # plt.show()
-# render_learned(env, P=EQ_P(R2), V = EQ_V(R2))
-# plt.show()
-# render_learned(env, P=EQ_P(R3), V = EQ_V(R3))
-# plt.show()
-# render_learned(env, P=EQ_P(R4), V = EQ_V(R4))
-# plt.show()
-
-# render_learned(env, P=EQ_P(NEG(R1)), V = EQ_V(NEG(R1)))
-# plt.show()
-# render_learned(env, P=EQ_P(NEG(R2)), V = EQ_V(NEG(R2)))
-# plt.show()
-# render_learned(env, P=EQ_P(NEG(R3)), V = EQ_V(NEG(R3)))
-# plt.show()
-# render_learned(env, P=EQ_P(NEG(R4)), V = EQ_V(NEG(R4)))
+# render_learned(env, P=EQ_P(DN), V = EQ_V(DN))
 # plt.show()
 
 ### Skill machines
@@ -73,11 +63,36 @@ skills = {
     "!R2": NEG(R2),
     "!R3": NEG(R3),
     "!R4": NEG(R4),
+    "DN": DN,
+    "!DN": NEG(DN),
+    "DE": DE,
+    "!DE": NEG(DE),
+    "DW": DW,
+    "!DW": NEG(DW),
+    "DS": DS,
+    "!DS": NEG(DS),
+    "(R1.!DN)": AND(R1,NEG(DN)),
+    "!(R1.!DN)": NEG(AND(R1,NEG(DN))),
     "MAX": max_,    
     "MIN": min_,   
 }
 
+
 class SM0(SM_base):
+    name = 'patrol'
+    terminal_states = set([1])
+    skills = skills
+    transitions = {
+        0: {
+            "!(R1.!DN)":[0, "(R1.!DN)"],
+            "(R1.!DN)":[1, "MAX"],
+        },
+        1: {
+            "MAX": [1, "MAX"],
+        }
+    }
+
+class SM1(SM_base):
     name = 'patrol'
     terminal_states = set([5])
     skills = skills
@@ -107,6 +122,36 @@ class SM0(SM_base):
         }
     }
 
+
+class SM2(SM_base):
+    name = 'patrol'
+    terminal_states = set([5])
+    skills = skills
+    transitions = {
+        0: {
+            "!DN":[0,"DN"],
+            "DN":[1, "DE"],
+        },
+        1: {
+            "!DE":[1,"DE"],
+            "DE":[2, "DS"],
+        },
+        2: {
+            "!DS":[2,"DS"],
+            "DS":[3, "DW"],
+        },
+        3: {
+            "!DW":[3,"DW"],
+            "DW":[4, "DN"],
+        },
+        4: {
+            "!DN":[4, "DN"],
+            "DN":[5, "MAX"],
+        },
+        5: {
+            "MAX": [5, "MAX"],
+        }
+    }
 
 
 skill_machine = SM0() #SM_THEN([SM_UNTIL(SM2(), SM_not_tM()), SM_UNTIL(SM1(), SM_not_tO()), SM_UNTIL(SM0(), SM_tO())]) # SM_THEN([SM1(),SM2()]) #SM_THEN([SM1(),SM2()]*4) # [SM1, SM2, SM_THEN([SM1(),SM2()])] 

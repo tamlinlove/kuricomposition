@@ -296,6 +296,31 @@ def GOAL(env, Q_init=None, gamma=1, epsilon=0.1, alpha=0.1, maxiter=100, maxstep
     return Q, stats
 
 #########################################################################################
+
+class EVF():
+    def __init__(self, action_space):
+        self.values = defaultdict(lambda: defaultdict(lambda: np.zeros(action_space.n)))
+    
+    def __call__(self, obs, goal):
+        return self.values[obs][goal]
+
+    def reset(self, obs):
+        self.goals = list(self.values[obs].keys())
+        print(self.goals, obs, len(self.values))
+        self.goal = self._get_goal(obs)
+
+    def get_value(self, obs):
+        return self(obs, self.goal).max()
+
+    def get_action(self, obs):
+        return self(obs, self.goal).argmax()
+
+    def _get_goal(self, obs):
+        values = [self(obs, goal).max() for goal in self.goals]
+        values = np.array(values)
+        idx = np.random.choice(np.flatnonzero(values == values.max()))
+        return self.goals[idx]
+
 def EQ_save(EQ):
     EQ_ = {}
     for state in EQ:
@@ -393,7 +418,7 @@ def render_learned(env, agent=True, env_map=False, fig=None, mode='human', P=Non
             for i in env.gridworld_objects_keys:
                 gridworld_object.append(env.gridworld_objects[i].state(position))
                 env.gridworld_objects[i].reset()
-            state = (position,direction,tuple(gridworld_object))
+            state = (position,direction,frozenset(),tuple(gridworld_object))
             q = Q[state]
             y, x = position
             for action in range(env.action_space.n):
@@ -412,7 +437,7 @@ def render_learned(env, agent=True, env_map=False, fig=None, mode='human', P=Non
             for i in env.gridworld_objects_keys:
                 gridworld_object.append(env.gridworld_objects[i].state(position))
                 env.gridworld_objects[i].reset()
-            state = (position,direction,tuple(gridworld_object))
+            state = (position,direction,frozenset(),tuple(gridworld_object))
 
             y, x = position
             v[y,x] = V[state]  
@@ -427,7 +452,7 @@ def render_learned(env, agent=True, env_map=False, fig=None, mode='human', P=Non
             for i in env.gridworld_objects_keys:
                 gridworld_object.append(env.gridworld_objects[i].state(position))
                 env.gridworld_objects[i].reset()
-            state = (position,direction,tuple(gridworld_object))
+            state = (position,direction,frozenset(),tuple(gridworld_object))
 
             y, x = position
             action = P[state]
@@ -526,9 +551,9 @@ def AVG(Q1, Q2):
     return Q
 
 #########################################################################################
-def EQMAX(EQ,rmax=2): #Estimating EQ_max
+def EQMAX(EQ,rmax=2, nA = 4): #Estimating EQ_max
     rmax = rmax
-    EQ_max = defaultdict(lambda: defaultdict(lambda: np.zeros(5)))
+    EQ_max = defaultdict(lambda: defaultdict(lambda: np.zeros(nA)))
     for s in list(EQ.keys()):
         for g in list(EQ[s].keys()):
             c = rmax-max(EQ[g][g])
@@ -538,9 +563,9 @@ def EQMAX(EQ,rmax=2): #Estimating EQ_max
                 EQ_max[s][g] = EQ[s][g] + c   
     return EQ_max
 
-def EQMIN(EQ,rmin=-0.1): #Estimating EQ_min
+def EQMIN(EQ,rmin=-0.1, nA = 4): #Estimating EQ_min
     rmin = rmin
-    EQ_min = defaultdict(lambda: defaultdict(lambda: np.zeros(5)))
+    EQ_min = defaultdict(lambda: defaultdict(lambda: np.zeros(nA)))
     for s in list(EQ.keys()):
         for g in list(EQ[s].keys()):
             c = rmin-max(EQ[g][g])
@@ -550,31 +575,31 @@ def EQMIN(EQ,rmin=-0.1): #Estimating EQ_min
                 EQ_min[s][g] = EQ[s][g] + c  
     return EQ_min
 
-def NOTD(EQ, EQ_max):
-    EQ_not = defaultdict(lambda: defaultdict(lambda: np.zeros(5)))
+def NOTD(EQ, EQ_max, nA = 4):
+    EQ_not = defaultdict(lambda: defaultdict(lambda: np.zeros(nA)))
     for s in list(EQ_max.keys()):
         for g in list(EQ_max[s].keys()):
             EQ_not[s][g] = EQ_max[s][g] - EQ[s][g]    
     return EQ_not
 
-def NOT(EQ, EQ_max=None, EQ_min=None):
+def NOT(EQ, EQ_max=None, EQ_min=None, nA = 4):
     EQ_max = EQ_max if EQ_max else EQMAX(EQ)
     EQ_min = EQ_min if EQ_min else EQMIN(EQ)
-    EQ_not = defaultdict(lambda: defaultdict(lambda: np.zeros(5)))
+    EQ_not = defaultdict(lambda: defaultdict(lambda: np.zeros(nA)))
     for s in list(EQ_max.keys()):
         for g in list(EQ_max[s].keys()):
             EQ_not[s][g] = (EQ_max[s][g]+EQ_min[s][g]) - EQ[s][g]    
     return EQ_not
 
-def OR(EQ1, EQ2):
-    EQ = defaultdict(lambda: defaultdict(lambda: np.zeros(5)))
+def OR(EQ1, EQ2, nA = 4):
+    EQ = defaultdict(lambda: defaultdict(lambda: np.zeros(nA)))
     for s in list(set(list(EQ1.keys())) | set(list(EQ2.keys()))):
         for g in list(set(list(EQ1[s].keys())) | set(list(EQ2[s].keys()))):
             EQ[s][g] = np.max([EQ1[s][g],EQ2[s][g]],axis=0)
     return EQ
 
-def AND(EQ1, EQ2):
-    EQ = defaultdict(lambda: defaultdict(lambda: np.zeros(5)))
+def AND(EQ1, EQ2, nA = 4):
+    EQ = defaultdict(lambda: defaultdict(lambda: np.zeros(nA)))
     for s in list(set(list(EQ1.keys())) | set(list(EQ2.keys()))):
         for g in list(set(list(EQ1[s].keys())) | set(list(EQ2[s].keys()))):
             EQ[s][g] = np.min([EQ1[s][g],EQ2[s][g]],axis=0)

@@ -30,7 +30,7 @@ def reset():
 
 def step(action):
     obs, reward, done, info = env.step(action)
-    print('obs={}, reward={}'.format(env.goals[obs] if type(obs)==int else obs, reward))
+    print('obs={}, event={}, reward={}'.format(env.goals[obs] if type(obs)==int else obs, env.goals[env.get_goal(env.state)], reward))
 
     if done:
         print('done!')

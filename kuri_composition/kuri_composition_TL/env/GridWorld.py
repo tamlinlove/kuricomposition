@@ -84,10 +84,10 @@ class roomD(GridWorld_Object):
         positions = [(7,2)]
         super().__init__(positions)
 
-class door1(GridWorld_Object):
-    def __init__(self):
-        positions = [(7,2)]
-        super().__init__(positions)
+# class door1(GridWorld_Object):
+#     def __init__(self):
+#         positions = [(7,2)]
+#         super().__init__(positions)
 
 # class coffee(GridWorld_Object):
 #     def __init__(self):
@@ -115,10 +115,10 @@ gridworld_objects =  {
     '2room': roomB(),
     '3room': roomC(),
     '4room': roomD(),
-    '10door': door1(),
-    '20door': door2(),
-    '30door': door3(),
-    '40door': door4(),
+    # '10door': door1(),
+    # '20door': door2(),
+    # '30door': door3(),
+    # '40door': door4(),
     # 'decor': decor(),
     # 'coffee': coffee(),
     # 'mail': mail(),
@@ -192,6 +192,19 @@ class GridWorld(gym.Env):
         self.Doors = {}
         self.closed_doors = []
         
+        self.has_doors = has_doors
+        if self.has_doors:
+            self.Doors[(2,4)] = "n"
+            self.Doors[(2,5)] = "n"
+            self.Doors[(7,4)] = "s"
+            self.Doors[(7,5)] = "s"
+            self.Doors[(4,2)] = "w"
+            self.Doors[(5,2)] = "w"
+            self.Doors[(4,7)] = "e"
+            self.Doors[(5,7)] = "e"
+        self.doors = set(list(self.Doors.values()))
+        self.closed_doors = self.doors.copy()
+        
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         np.random.rand(seed)
@@ -230,6 +243,9 @@ class GridWorld(gym.Env):
         elif action == self.actions.left:
             self.direction = (self.direction+len(self.directions)-1)%len(self.directions)
 
+        if self.position in self.Doors and (x,y) in self.Doors and self.position!=(x,y) and self.Doors[self.position] in self.closed_doors:
+            self.closed_doors.remove(self.Doors[self.position])
+        
         self.position = (x, y)
                 
         object_states = []
@@ -240,7 +256,7 @@ class GridWorld(gym.Env):
             # stay at old state if new coord is wall
             self.position = self.state[0]
         else:
-            self.state = self.position, self.direction, tuple(object_states)
+            self.state = self.position, self.direction, frozenset(self.doors-self.closed_doors), tuple(object_states)
                              
         return self.state, reward, self.done, None
 
@@ -249,6 +265,7 @@ class GridWorld(gym.Env):
 
     def reset(self):
         self.done = False
+        self.closed_doors = self.doors.copy()
         
         if not self.start_position:
             idx = np.random.randint(len(self.possiblePositions))
@@ -264,7 +281,7 @@ class GridWorld(gym.Env):
         object_states = []
         for i in self.gridworld_objects_keys:
             object_states.append(self.gridworld_objects[i].state(self.position))
-        self.state = (self.position,self.direction,tuple(object_states))
+        self.state = (self.position,self.direction, frozenset(self.doors-self.closed_doors), tuple(object_states))
         return self.state
 
     def render(self, agent=True, env_map=False, goal=None, fig=None, mode='human', title=None, grid=False):        
@@ -539,25 +556,22 @@ class GridWorld(gym.Env):
 ### Defining tasks over the environment
 
 predicates =  {
-    '1room': lambda state: state[2][0][0],
-    '2room': lambda state: state[2][1][0],
-    '3room': lambda state: state[2][2][0],
-    '4room': lambda state: state[2][3][0],
-    # 'decor': lambda state: state[1][5][0],
-    # 'coffee': lambda state: state[1][4][0],
-    # 'mail': lambda state: state[1][6][0],
-    # 'office': lambda state: state[1][7][0],
-    
-    # # 't_coffee': lambda state: True in state[1][4][1],
-    # 't_mail': lambda state: True in state[1][6][1],
-    # 't_office': lambda state: True in state[1][7][1],
+    '1room': lambda state: state[3][0][0],
+    '2room': lambda state: state[3][1][0],
+    '3room': lambda state: state[3][2][0],
+    '4room': lambda state: state[3][3][0],
+    'sdoor': lambda state: "s" in state[2],
+    'ndoor': lambda state: "n" in state[2],
+    'edoor': lambda state: "e" in state[2],
+    'wdoor': lambda state: "w" in state[2],
 }
 
 class Task(gym.core.Wrapper):
-    def __init__(self, env, predicates=predicates, task_goals=[], rmax=10, rmin=-0.1, start_position=None):
+    def __init__(self, env, predicates=predicates, task_goals=[], rmax=10, rmin=-0.1, start_position=None, start_direction=None):
         super().__init__(env)
         
         self.start_position = start_position
+        self.start_direction = start_direction
         self.task_goals = task_goals
         self.rmax = rmax
         self.rmin = rmin
