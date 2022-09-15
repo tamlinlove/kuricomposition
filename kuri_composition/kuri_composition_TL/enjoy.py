@@ -1,53 +1,8 @@
-import time
-import client
-
 from env.GridWorld import *
 from library import *
 from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw
 from env.window import Window
-
-#servers = ["localhost"]
-servers = ["192.168.1.3"]
-ports = [12007]
-sockets = [0]
-
-ROBOT = "Turtlebot"
-# ROBOT = "Kuri"
-
-if ROBOT == "Kuri":
-    TURN_MAGNITUDE = 1.48
-    NO_MOVEMENT = [0,0,0,0,0,0]
-    FORWARD = [0.3,0,0,0,0,0]
-    TURN_LEFT = [0,0,0,0,0,TURN_MAGNITUDE]
-    TURN_RIGHT = [0,0,0,0,0,-TURN_MAGNITUDE]
-    HEAD_POSITION_STRAIGHT = [0,0]
-    HEAD_POSITION_LEFT = [1,0]
-    HEAD_POSITION_RIGHT = [-1,0]
-    HEAD_POSITION_DOWN = [0,1]
-    HEAD_POSITION_UP = [0,-1]
-    EYES_CLOSED = 1
-    EYES_OPEN = 0
-    EYES_SMILE = -0.3
-    SLEEP_TIME = 1.2
-if ROBOT == "Turtlebot":
-    TURN_MAGNITUDE = 3.2
-    FORWARD_MAGNITUDE = 0.42
-    NO_MOVEMENT = [0,0,0,0,0,0]
-    FORWARD = [FORWARD_MAGNITUDE,0,0,0,0,0]
-    TURN_LEFT = [0,0,0,0,0,TURN_MAGNITUDE]
-    TURN_RIGHT = [0,0,0,0,0,-TURN_MAGNITUDE]
-    HEAD_POSITION_STRAIGHT = [0,0]
-    HEAD_POSITION_LEFT = [1,0]
-    HEAD_POSITION_RIGHT = [-1,0]
-    HEAD_POSITION_DOWN = [0,1]
-    HEAD_POSITION_UP = [0,-1]
-    EYES_CLOSED = 1
-    EYES_OPEN = 0
-    EYES_SMILE = -0.3
-    SLEEP_TIME = 0.5
-
-cur_led = 9
 
 start_position = (0,9)
 start_direction = Directions.up
@@ -159,36 +114,6 @@ window.fig.set_size_inches(7, 4)
 
 #######################################################################################
 
-def reset_behaviour():
-    print("Running reset behaviour")
-    limitSet = NO_MOVEMENT.copy()
-    limitSet.append(cur_led)
-    limitSet.append(HEAD_POSITION_DOWN)
-    limitSet.append(EYES_CLOSED)
-    client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
-    results = client.get_replies(sockets[0])
-    time.sleep(2)
-
-def startup_behaviour():
-    print("Running startup behaviour")
-    limitSet = NO_MOVEMENT.copy()
-    limitSet.append(cur_led)
-    limitSet.append(HEAD_POSITION_STRAIGHT)
-    limitSet.append(EYES_OPEN)
-    client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
-    results = client.get_replies(sockets[0])
-    time.sleep(2)
-
-def end_behaviour():
-    print("Running end behaviour")
-    limitSet = NO_MOVEMENT.copy()
-    limitSet.append(cur_led)
-    limitSet.append(HEAD_POSITION_UP)
-    limitSet.append(EYES_SMILE)
-    client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
-    results = client.get_replies(sockets[0])
-    time.sleep(2)
-
 def run():
     max_episodes = 1
     max_steps = 50
@@ -208,43 +133,8 @@ def run():
             state_, reward, done, _ = env.step(action)                 
             state = state_            
             
-            if action == env.actions.up:
-                limitSet = FORWARD.copy()
-                limitSet.append(float(Q[state][goal].max()))
-                limitSet.append(HEAD_POSITION_STRAIGHT)
-                limitSet.append(EYES_OPEN)
-                cur_led = float(Q[state][goal].max())
-            elif action == env.actions.left:
-                limitSet = TURN_LEFT.copy()
-                limitSet.append(float(Q[state][goal].max()))
-                limitSet.append(HEAD_POSITION_LEFT)
-                limitSet.append(EYES_OPEN)
-                cur_led = float(Q[state][goal].max())
-            elif action == env.actions.right:
-                limitSet = TURN_RIGHT.copy()
-                limitSet.append(float(Q[state][goal].max()))
-                limitSet.append(HEAD_POSITION_RIGHT)
-                limitSet.append(EYES_OPEN)
-                cur_led = float(Q[state][goal].max())
-            elif action == env.actions.done:
-                break
-            else:
-                print("Command not recognised. Must be w, a, d or q")
-                continue
-
-            print('sending: ', limitSet)
-            client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
-            results = client.get_replies(sockets[0])
-            time.sleep(SLEEP_TIME)
-
             if done:
                 break
 
 if __name__ == "__main__":
-    client.create_connections(servers[0], ports[0], sockets[0])
-    reset_behaviour()
-    startup_behaviour()
     run()
-    end_behaviour()
-    # closing connections to servers
-    client.close_connections(sockets[0])

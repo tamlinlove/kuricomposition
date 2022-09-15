@@ -570,7 +570,7 @@ class Task(gym.core.Wrapper):
     def __init__(self, env, predicates=predicates, task_goals=[], rmax=10, rmin=-0.1, start_position=None, start_direction=None):
         super().__init__(env)
         
-        self.start_position = start_position
+        self.env.start_position = start_position
         self.start_direction = start_direction
         self.task_goals = task_goals
         self.rmax = rmax
