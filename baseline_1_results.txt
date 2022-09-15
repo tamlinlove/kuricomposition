@@ -1,0 +1,5 @@
+{'num_actions': 12, 'total_time': 12.808843612670898, 'final_distance': 43.57177985806869} - success
+{'num_actions': 12, 'total_time': 12.816325426101685, 'final_distance': 20.396078054371138} - success
+{'num_actions': 12, 'total_time': 12.81595516204834, 'final_distance': 68.65311354920475} - failed
+{'num_actions': 12, 'total_time': 12.784815549850464, 'final_distance': 52.376044142336674} - success
+{'num_actions': 12, 'total_time': 12.81651496887207, 'final_distance': 56.029010342857205} - failed

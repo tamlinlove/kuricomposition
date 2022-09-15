@@ -1,11 +1,31 @@
+from cmath import isnan
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import math
+import time
 
 image_dir = "calibration/"
 
 CAMERA_NUMBER = 0
+
+directory = "footage/"
+format = ".avi"
+
+def get_output_filename(frame_name):
+    #print(time.ctime(time.time()))
+    timestamp = time.ctime(time.time()).split(" ")[3].split(":")
+    #print(timestamp)
+    filename = frame_name+"-"+timestamp[0]+"-"+timestamp[1]+"-"+timestamp[2]
+    return filename
+
+def display(frame_name,frame,out=None):
+    cv2.imshow(frame_name,frame)
+    if out:
+        out.write(frame)
+
+
+DIRECTIONS = ["UP","RIGHT","DOWN","LEFT"]
 
 def get_angle(back,front):
     #horizontal = (front[0],back[1])
@@ -27,7 +47,9 @@ def get_angle(back,front):
 def get_colour_images():
     front = plt.imread(image_dir+"front.png")
     back = plt.imread(image_dir+"back.png")
-    return [front,back]
+    front_dark = plt.imread(image_dir+"front_dark.png")
+    back_dark = plt.imread(image_dir+"back_dark.png")
+    return [front,back,front_dark,back_dark]
 
 def get_colour_averages():
     colour_images = get_colour_images()
@@ -45,36 +67,35 @@ def detect_single_colour(image,upper,lower):
     centre = np.mean(pixels,axis=1)
     return centre
 
-def find_centres(image,tol=0.05,draw=False,frame=None,radius=30):
+def find_centres(image,tol=0.1,draw=False,frame=None,radius=30):
     averages = get_colour_averages()
-    plt.imsave("front_average.png",np.ones((100,100,3))*averages[0].reshape(1,1,3))
-    plt.imsave("back_average.png",np.ones((100,100,3))*averages[1].reshape(1,1,3))
-    plt.close()
+    #plt.imsave("front_average.png",np.ones((100,100,3))*averages[0].reshape(1,1,3))
+    #plt.imsave("back_average.png",np.ones((100,100,3))*averages[1].reshape(1,1,3))
+    #plt.close()
     front_upper = averages[0]+np.ones(3)*tol
     front_lower = averages[0]-np.ones(3)*tol
     back_upper = averages[1]+np.ones(3)*tol
     back_lower = averages[1]-np.ones(3)*tol
+    front_upper_dark = averages[2]+np.ones(3)*tol
+    front_lower_dark = averages[2]-np.ones(3)*tol
+    back_upper_dark = averages[3]+np.ones(3)*tol
+    back_lower_dark = averages[3]-np.ones(3)*tol
 
-    upper_bounds = [front_upper,back_upper]
-    lower_bounds = [front_lower,back_lower]
+    upper_bounds = [front_upper,back_upper,front_upper_dark,back_upper_dark]
+    lower_bounds = [front_lower,back_lower,front_lower_dark,back_lower_dark]
 
     centres = []
 
-    '''
-    for i in range(len(averages)):
-        mask = cv2.inRange(image, lower_bounds[i], upper_bounds[i])
-        res = cv2.bitwise_and(image,image, mask= mask)
-        pix = np.where(mask==255)
-        pixels = np.array([pix[0],pix[1]])
-        centre = np.mean(pixels,axis=1)
-        centres.append(centre)
-    '''
-
     start_index = 0
     end_index = 1
+    start_index_dark = 2
+    end_index_dark = 3
 
     # First, detect front which is distinct
     centre = detect_single_colour(image,upper_bounds[start_index],lower_bounds[start_index])
+    if math.isnan(centre[0]):
+        # Try detect dark instead
+        centre = detect_single_colour(image,upper_bounds[start_index_dark],lower_bounds[start_index_dark])
     centres.append(centre)
 
     # Now, search for back within a radius of front
@@ -85,6 +106,8 @@ def find_centres(image,tol=0.05,draw=False,frame=None,radius=30):
 
     sub_image = image[centre_int[1]-radius:centre_int[1]+radius,centre_int[0]-radius:centre_int[0]+radius]
     centre = detect_single_colour(sub_image,upper_bounds[end_index],lower_bounds[end_index])
+    if math.isnan(centre[0]+centre_int[1]-radius):
+        centre = detect_single_colour(sub_image,upper_bounds[end_index_dark],lower_bounds[end_index_dark])
     centre = [centre[0]+centre_int[1]-radius,centre[1]+centre_int[0]-radius]
     centres.append(centre)
 
@@ -93,6 +116,42 @@ def find_centres(image,tol=0.05,draw=False,frame=None,radius=30):
     if draw and frame is not None:
         drawOnFeed(frame,centres,averages)
     return centres
+
+def find_centres_hue(image,draw=False,frame=None):
+    image = np.float32(image)
+    image_blur = cv2.GaussianBlur(image,(11,11),cv2.BORDER_DEFAULT)
+    #image_blur = np.float32(image_blur)
+    
+    image_hsv = cv2.cvtColor(image,cv2.COLOR_RGB2HSV)
+    image_hue = (image_hsv[:,:,0]/255)*(image_hsv[:,:,1])
+
+    image_thresh = image_hsv[:,:,1]
+    image_thresh = np.where(image_thresh>0.3*np.max(image_thresh),1.0,0.0).reshape(image.shape[0],image.shape[1],1)
+    #print(image_hue)
+    image_mask = image*image_thresh
+    image_mask = np.float32(image_mask)
+    #cv2.imshow('frame_2',cv2.cvtColor(image_mask,cv2.COLOR_RGB2BGR))
+
+    #plt.imsave("calibration_mask.png",image_mask)  
+
+    centres = find_centres(image_mask)
+
+    
+
+    #plt.imsave("calibration_mask.png",image_mask)    
+
+    
+
+    if draw and frame is not None:
+        drawOnFeed(frame,centres,None)
+    return centres
+
+
+
+    
+
+
+
 
 def drawOnFeed(frame,centres,averages):
     for i in range(len(centres)):
@@ -119,7 +178,7 @@ def camera_test(draw_colours = False):
 
         centres = find_centres(image,tol=0.1,draw=draw_colours,frame=frame)
 
-        cv2.imshow('frame',frame)
+        display("frame",frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -139,7 +198,8 @@ def display_text(frame,text,position=(40,40),font=cv2.FONT_HERSHEY_SIMPLEX,fontS
 
 def get_position(image,front=(0,0),back=(0,0)):
     try:
-        centres = find_centres(image,tol=0.1)
+        #centres = find_centres(image,tol=0.2)
+        centres = find_centres_hue(image)
         coordinates = get_coordinates(centres)
 
         front = coordinates[0]
@@ -158,31 +218,51 @@ def update_image(cap):
     #image = crop_image(image)
     return image,frame
 
-def draw_frame(frame,draw_cirlces=None):
+def camera_sleep(cap,sleep_time=1,draw_circles=None):
+    start_time = time.time()
+
+    while True:
+        _,frame = update_image(cap)
+        draw_frame(frame,draw_cirlces=draw_circles)
+
+        if time.time()-start_time > sleep_time:
+            break
+
+def draw_frame(frame,out=None,draw_cirlces=None):
 
     if draw_cirlces is not None:
         for point in draw_cirlces:
             cv2.circle(frame,draw_cirlces[point],5,(0,0,0),2)
 
-    cv2.imshow('frame',frame)
+    display("frame",frame,out)
 
 
 def simple_localisation_test():
 
     cap =  cap = cv2.VideoCapture(CAMERA_NUMBER)
+    fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
+    filename = get_output_filename("frame")
+    out = cv2.VideoWriter(directory+filename+format, fourcc, 20.0, (int(cap.get(3)),int(cap.get(4))))
     coordinates = [(0,0),(0,0),(0,0)]
 
     while True:
+        '''
         try:
             image,frame = get_frame(cap)
-            image = image[:,80:-1]
-            frame = frame[:,80:-1]
             #cv2.rectangle(frame,(80,0),(600,600),(0,0,255),2)
-            centres = find_centres(image,tol=0.1,draw=True,frame=frame)
+            #centres = find_centres(image,tol=0.1,draw=True,frame=frame)
+            centres = find_centres_hue(image,draw=True,frame=frame)
             coordinates = get_coordinates(centres)
         except Exception as e:
             #print(e)
             pass
+        '''
+        try:
+            image,frame = get_frame(cap)
+            centres = find_centres_hue(image,draw=True,frame=frame)
+            coordinates = get_coordinates(centres)
+        except Exception as e:
+            print(e)
 
         front = coordinates[0]
         back = coordinates[1]
@@ -192,12 +272,13 @@ def simple_localisation_test():
         angle = get_angle(back,front)
         display_text(frame,"Angle:{} degrees".format(int(math.degrees(angle))),(40,40))
 
-        cv2.imshow('frame',frame)
+        display("frame",frame,out)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
+    out.release()
     cv2.destroyAllWindows()
 
 def find_qrs(frame):
@@ -263,13 +344,51 @@ def get_all_state_coords(top_left,bottom_right):
     X_INTERVAL = (bottom_right[0]-top_left[0])//9
     Y_INTERVAL = (bottom_right[1]-top_left[1])//9
 
-
+    cols = []
+    centre_coords = [(2,7),(7,2),(2,2),(7,7)]
 
     points = []
     for i in range(10):
+        point_row = []
         for j in range(10):
-            points.append((X_OFFSET+i*X_INTERVAL,Y_OFFSET+j*Y_INTERVAL))
+            point_row.append((X_OFFSET+i*X_INTERVAL,Y_OFFSET+j*Y_INTERVAL))
+            if (i,j) in centre_coords:
+                cols.append((255,0,0))
+            else:
+                cols.append((0,0,255))
+        points.append(point_row)
+    return points,cols
+
+def get_room_states(offset=40,x_offset=160,y_offset=0):
+
+    x_offset = (x_offset+offset)//2
+    y_offset = (y_offset+offset)//2
+
+    top_left = (x_offset,y_offset)
+    bottom_right = (640-x_offset,480-y_offset)
+
+    points,_ = get_all_state_coords(top_left,bottom_right)
+
     return points
+
+def get_goal_from_state(state,offset=40,x_offset=160,y_offset=0):
+    points = get_room_states(offset=offset,x_offset=x_offset,y_offset=y_offset)
+    
+
+
+    position = state[0]
+    goal = points[position[1]][position[0]]
+    goal_direction = DIRECTIONS[state[1]]
+
+    print(goal)
+
+    return goal,goal_direction
+    
+    
+
+
+
+
 
 
 def draw_states():
@@ -278,14 +397,25 @@ def draw_states():
     while True:
         image,frame = get_frame(cap)
 
-        top_left = (80,10)
-        bottom_right = (620,460)
+        # size = (640,480)
+        '''
+        EDGE_OFFSET = 100
+
+        top_left = (EDGE_OFFSET,EDGE_OFFSET)
+        bottom_right = (640-EDGE_OFFSET,480-EDGE_OFFSET)
 
         cv2.rectangle(frame,top_left,bottom_right,(0,255,0),2)
 
-        points = get_all_state_coords(top_left,bottom_right)
-        for point in points:
-            cv2.circle(frame,point,5,(0,0,255),1)
+        points,cols = get_all_state_coords(top_left,bottom_right)
+        for i in range(len(points)):
+            cv2.circle(frame,points[i],5,cols[i],1)
+        '''
+        
+        points = get_room_states()
+        for i in range(len(points)):
+            for j in range(len(points[i])):
+                cv2.circle(frame,points[i][j],5,(255,0,0),1)
+
 
         #for i in range(10):
         #    cv2.line(frame,(0,i*(480//9)),(640,i*(480//9)),(255,0,0),2)

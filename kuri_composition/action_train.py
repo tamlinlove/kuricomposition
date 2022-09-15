@@ -1,10 +1,11 @@
 import time
 import client
+import motion
 
 import matplotlib.pyplot as plt
 
 #servers = ["localhost"]
-servers = ["192.168.1.5"]
+servers = ["192.168.1.2"]
 ports = [12007]
 sockets = [0]
 
@@ -77,7 +78,7 @@ def end_behaviour():
     time.sleep(2)
 
 def move_forward():
-    limitSet = FORWARD.copy()
+    limitSet = [motion.FORWARD_MAGNITUDE*1000,0,0,0,0,0]
     limitSet.append(cur_led)
     limitSet.append(HEAD_POSITION_UP)
     limitSet.append(EYES_SMILE)
@@ -86,7 +87,7 @@ def move_forward():
     time.sleep(SLEEP_TIME)
 
 def turn_left():
-    limitSet = TURN_LEFT.copy()
+    limitSet = [0,0,0,0,0,motion.TURN_MAGNITUDE*1000]
     limitSet.append(cur_led)
     limitSet.append(HEAD_POSITION_UP)
     limitSet.append(EYES_SMILE)
@@ -95,7 +96,7 @@ def turn_left():
     time.sleep(SLEEP_TIME)
 
 def turn_right():
-    limitSet = TURN_RIGHT.copy()
+    limitSet = [0,0,0,0,0,-motion.TURN_MAGNITUDE*1000]
     limitSet.append(cur_led)
     limitSet.append(HEAD_POSITION_UP)
     limitSet.append(EYES_SMILE)
@@ -105,17 +106,9 @@ def turn_right():
 
 
 def run():
-    move_forward()
-    move_forward()
-    move_forward()
-    move_forward()
-    move_forward()
-    turn_left()
-    move_forward()
-    move_forward()
-    move_forward()
-    move_forward()
-    move_forward()
+    #move_forward()
+    turn_right()
+    #turn_left()
 
 if __name__ == "__main__":
     client.create_connections(servers[0], ports[0], sockets[0])

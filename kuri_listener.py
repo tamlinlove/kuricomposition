@@ -14,7 +14,7 @@ def move(publisher, x, y, z, ax, ay, az):
     #velocity_publisher = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size=100)
 
     velocity_msg = Twist()
-    print(velocity_msg)
+    #print(velocity_msg)
 
     #Need to compensate for subscriber
     # Need this for the robot to do anything
@@ -118,6 +118,8 @@ if __name__ == '__main__':
                 limits = pickle.loads(pickledLimits)
                 print("Received: ", limits)
                 x, y, z, ax, ay, az, value, hpos, epos = limits
+                x = float(x)/1000
+                az = float(az)/1000
                 print("move and value: ({},{},{},{},{},{},{})".format(x, y, z, ax, ay, az,value))
                 toSend = [1, 21]
                 connectionSocket.send(pickle.dumps(toSend))
@@ -132,5 +134,5 @@ if __name__ == '__main__':
                 except rospy.ROSInterruptException: pass
             
             connectionSocket.close()#Closing connections.
-        except:
-            pass
+        except Exception as e:
+            print(e)

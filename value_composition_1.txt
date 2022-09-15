@@ -1,0 +1,4 @@
+{'num_actions': 12, 'error_time': 176.30015182495117, 'num_corrections': 165, 'total_time': 189.32792615890503, 'final_distance': 1.118033988749895} - success
+{'num_actions': 12, 'error_time': 195.1879961490631, 'num_corrections': 183, 'total_time': 208.3401448726654, 'final_distance': 8.139410298049853} - success
+{'num_actions': 12, 'error_time': 157.81962037086487, 'num_corrections': 143, 'total_time': 170.8070764541626, 'final_distance': 2.23606797749979} - success
+{'num_actions': 12, 'error_time': 188.96915459632874, 'num_corrections': 177, 'total_time': 201.93513441085815, 'final_distance': 2.5} - success

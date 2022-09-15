@@ -2,6 +2,8 @@ from socket import *
 import pickle
 import time
 
+
+
 # creating sockects for the different turtlebot servers
 client_sockets = [socket(AF_INET, SOCK_STREAM), socket(AF_INET, SOCK_STREAM)]
 
@@ -14,6 +16,7 @@ def send_to_server(limit_set, server_name, socket):
 	#print ("Sending range " + str(limit_set) + " to host " + str(server_name))
 	data = pickle.dumps(limit_set, protocol=2)
 	client_sockets[socket].send(data)
+	#client_sockets[socket].flush()
 
 def get_replies(socket):
 	 #Getting replies from servers.

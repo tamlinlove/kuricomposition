@@ -1,3 +1,4 @@
+from turtle import forward
 import numpy as np
 import math
 import time
@@ -6,9 +7,9 @@ import cv2
 import camera
 import client
 
-STATE_DISTANCE = 50
+STATE_DISTANCE = 44
 
-servers = ["192.168.1.5"]
+servers = ["192.168.1.2"]
 ports = [12007]
 sockets = [0]
 
@@ -33,13 +34,11 @@ if ROBOT == "Kuri":
     SLEEP_TIME = 1.2
 if ROBOT == "Turtlebot":
     TURN_MAGNITUDE = 3.7
-    TURN_MAGNITUDE_LEFT = 3.7
-    TURN_MAGNITUDE_RIGHT = 3.7
-    FORWARD_MAGNITUDE = 0.7
+    FORWARD_MAGNITUDE = 0.6
     NO_MOVEMENT = [0,0,0,0,0,0]
     FORWARD = [FORWARD_MAGNITUDE,0,0,0,0,0]
-    TURN_LEFT = [0,0,0,0,0,TURN_MAGNITUDE_LEFT]
-    TURN_RIGHT = [0,0,0,0,0,-TURN_MAGNITUDE_RIGHT]
+    TURN_LEFT = [0,0,0,0,0,TURN_MAGNITUDE]
+    TURN_RIGHT = [0,0,0,0,0,-TURN_MAGNITUDE]
     HEAD_POSITION_STRAIGHT = [0,0]
     HEAD_POSITION_LEFT = [1,0]
     HEAD_POSITION_RIGHT = [-1,0]
@@ -48,23 +47,24 @@ if ROBOT == "Turtlebot":
     EYES_CLOSED = 1
     EYES_OPEN = 0
     EYES_SMILE = -0.3
-    SLEEP_TIME = 1.5
+    SLEEP_TIME = 1
 
 cur_led = 9
 
 directions = ["UP","DOWN","LEFT","RIGHT"]
 
-def get_cardinal_goal(back,direction):
-    distance = 100
-    goal = (back[0]+distance,back[1])
+def get_cardinal_goal(front,back,direction):
+    centre = [(back[0]+front[0])//2,(back[1]+front[1])//2]
+    distance = 50
+    goal = (centre[0]+distance,centre[1])
     if direction == "RIGHT":
-        goal = (back[0]+distance,back[1])
-    elif direction == "UP":
-        goal = (back[0],back[1]+distance)
-    elif direction == "LEFT":
-        goal = (back[0]-distance,back[1])
+        goal = (centre[0]+distance,centre[1])
     elif direction == "DOWN":
-        goal = (back[0],back[1]-distance)
+        goal = (centre[0],centre[1]+distance)
+    elif direction == "LEFT":
+        goal = (centre[0]-distance,centre[1])
+    elif direction == "UP":
+        goal = (centre[0],centre[1]-distance)
     return goal
     
 
@@ -83,6 +83,8 @@ def angle_to_goal(back,front,goal):
 def get_rotation_to_goal(angle):
     angle_proportion = angle/(math.pi/2)
     turn_velocity = angle_proportion * TURN_MAGNITUDE
+    turn_velocity = int(turn_velocity*1000)
+    #turn_velocity = math.pi/2
     return [0,0,0,0,0,turn_velocity]
 
 def dist(a,b):
@@ -99,24 +101,28 @@ def get_forward_motion_to_goal(distance):
     forward_magnitude = distance_proportion * FORWARD_MAGNITUDE
 
     forward_magnitude = min(forward_magnitude,FORWARD_MAGNITUDE)
+    forward_magnitude = int(forward_magnitude*1000)
+    #forward_magnitude = 0.1
     print("MAX: {}, current: {}, distance: {}".format(FORWARD_MAGNITUDE,forward_magnitude,distance))
 
     return [forward_magnitude,0,0,0,0,0]
 
-def send_movement_command(command):
-    SLEEP_TIME = 2
+def send_movement_command(cap,command,draw_circles=None):
+    #SLEEP_TIME = 2
 
     limitSet = command
     limitSet.append(cur_led)
     limitSet.append(HEAD_POSITION_UP)
     limitSet.append(EYES_SMILE)
-    print(command)
+    #print("Command:")
+    #print(command)
     client.send_to_server(limitSet, servers[0], sockets[0]) #Sending sets to servers
+    camera.camera_sleep(cap,sleep_time=SLEEP_TIME,draw_circles=draw_circles)
     results = client.get_replies(sockets[0])
-    print(results)
-    time.sleep(SLEEP_TIME)
+    #print(results)
+    
 
-def angle_correct(cap,goal,front=(0,0),back=(0,0),max_tries=10,draw_circles=None):
+def angle_correct(cap,out,goal,front=(0,0),back=(0,0),max_tries=10,draw_circles=None):
     image,frame = camera.update_image(cap)
     front,back = camera.get_position(image,front=front,back=back)
     
@@ -126,17 +132,17 @@ def angle_correct(cap,goal,front=(0,0),back=(0,0),max_tries=10,draw_circles=None
         draw_circles["Front"] = front
         draw_circles["Back"] = back
 
-    send_movement_command(get_rotation_to_goal(angle))
+    send_movement_command(cap,get_rotation_to_goal(angle),draw_circles=draw_circles)
     
     
     #angle_tries += 1
 
     #camera.display_text(frame,"Angle: {} degrees".format(math.degrees(angle)))
-    camera.draw_frame(frame,draw_cirlces=draw_circles)
+    camera.draw_frame(frame,out=out,draw_cirlces=draw_circles)
 
     return front,back
 
-def distance_correct(cap,goal,front=(0,0),back=(0,0),max_tries=10,draw_circles=None):
+def distance_correct(cap,out,goal,front=(0,0),back=(0,0),max_tries=10,draw_circles=None):
     image,frame = camera.update_image(cap)
     front,back = camera.get_position(image,front=front,back=back)
     distance = get_distance_to_goal(back,front,goal)
@@ -146,35 +152,104 @@ def distance_correct(cap,goal,front=(0,0),back=(0,0),max_tries=10,draw_circles=N
         draw_circles["Back"] = back
 
     command = get_forward_motion_to_goal(distance)
-    send_movement_command(command)
+    send_movement_command(cap,command,draw_circles=draw_circles)
 
     #move_tries += 1
 
     #camera.display_text(frame,"Distance: {}".format(distance))
-    camera.draw_frame(frame,draw_cirlces=draw_circles)
+    camera.draw_frame(frame,out=out,draw_cirlces=draw_circles)
 
     return front,back
 
 
-def error_correct(cap,goal,goal_direction,angle_tolerance=0.15,distance_tolerance=10,max_tries=5,draw_circles=None):
+def error_correct(cap,out,goal,goal_direction,angle_tolerance=0.08,distance_tolerance=10,max_tries=5,draw_circles=None,metrics={}):
     image,frame = camera.update_image(cap)
-    camera.draw_frame(frame)
+    camera.draw_frame(frame,out=out)
 
     front = (0,0)
     back = (0,0)
 
+    distance = distance_tolerance + 1
+
+    this_time = time.time()
+    num_corrections = 0
+
     while True:
-        front,back = angle_correct(cap,goal,front=front,back=back,draw_circles=draw_circles)
-        front,back = distance_correct(cap,goal,front=front,back=back,draw_circles=draw_circles)
+        while True:
+            front,back = angle_correct(cap,out,goal,front=front,back=back,draw_circles=draw_circles)
+            num_corrections += 1
+
+            angle = angle_to_goal(back,front,goal)
+
+            if abs(angle) < angle_tolerance:
+                break
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break 
+
+        front,back = distance_correct(cap,out,goal,front=front,back=back,draw_circles=draw_circles)
+        num_corrections += 1
+        distance = get_distance_to_goal(back,front,goal)
+        if distance < distance_tolerance:
+            break
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+    
+
+
+    """
+    while True:
+        front,back = angle_correct(cap,goal,front=front,back=back,draw_circles=draw_circles)
+        front,back = distance_correct(cap,goal,front=front,back=back,draw_circles=draw_circles)
+
+        distance = get_distance_to_goal(back,front,goal)
+        if distance < distance_tolerance:
+            break
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    """
+
+    
+    while True:
+        new_goal = get_cardinal_goal(front,back,goal_direction)
+        draw_circles["New Goal"] = new_goal
+        front,back = angle_correct(cap,out,new_goal,front=front,back=back,draw_circles=draw_circles)
+        num_corrections += 1
+
+        angle = angle_to_goal(back,front,new_goal)
+
+        if abs(angle) < angle_tolerance:
+            break
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    error_time = time.time() - this_time
+
+    if "error_time" in metrics.keys():
+        metrics["error_time"] += error_time
+    else:
+        metrics["error_time"] = error_time
+
+    if "num_corrections" in metrics.keys():
+        metrics["num_corrections"] += num_corrections
+    else:
+        metrics["num_corrections"] = num_corrections
+
+    return metrics
+
+        
+
+    
 
 
 
 
-def error_correct_1(cap,goal,goal_direction,angle_tolerance=0.15,distance_tolerance=10,max_tries=5,draw_circles=None):
+
+def error_correct_1(cap,goal,goal_direction,angle_tolerance=0.1,distance_tolerance=10,max_tries=5,draw_circles=None):
 
     image,frame = camera.update_image(cap)
     camera.draw_frame(frame)
@@ -195,7 +270,7 @@ def error_correct_1(cap,goal,goal_direction,angle_tolerance=0.15,distance_tolera
         draw_circles["Front"] = front
         draw_circles["Back"] = back
 
-        send_movement_command(get_rotation_to_goal(angle))
+        send_movement_command(cap,get_rotation_to_goal(angle),draw_circles=draw_circles)
         
         
         #angle_tries += 1
@@ -226,8 +301,7 @@ def error_correct_1(cap,goal,goal_direction,angle_tolerance=0.15,distance_tolera
         draw_circles["Back"] = back
 
         command = get_forward_motion_to_goal(distance)
-        print("Hello")
-        send_movement_command(command)
+        send_movement_command(cap,command,draw_circles=draw_circles)
 
         #move_tries += 1
 
@@ -254,7 +328,7 @@ def error_correct_1(cap,goal,goal_direction,angle_tolerance=0.15,distance_tolera
         draw_circles["Front"] = front
         draw_circles["Back"] = back
 
-        send_movement_command(get_rotation_to_goal(angle))
+        send_movement_command(cap,get_rotation_to_goal(angle),draw_circles=draw_circles)
         
         #angle_tries += 1
 
@@ -276,12 +350,25 @@ def run():
 
     cap =  cap = cv2.VideoCapture(camera.CAMERA_NUMBER)
 
-    goal = [400,350]
+    points = camera.get_room_states()
+
+    goal_index = np.random.choice(range(len(points)))
+    goal = points[goal_index]
+
+    goal = [200,400]
+
     goal_direction = "UP"
 
     draw_circles = {"Goal":goal}
 
-    error_correct(cap,goal,goal_direction,draw_circles=draw_circles)
+    total_time_start = time.time()
+
+    metrics = error_correct(cap,goal,goal_direction,draw_circles=draw_circles)
+
+    total_time = time.time() - total_time_start
+    metrics["total_time"] = total_time
+
+    print(metrics)
 
     while True:
         _,frame = camera.update_image(cap)
