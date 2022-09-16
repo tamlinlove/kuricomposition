@@ -2,3 +2,4 @@
 {'num_actions': 12, 'error_time': 195.1879961490631, 'num_corrections': 183, 'total_time': 208.3401448726654, 'final_distance': 8.139410298049853} - success
 {'num_actions': 12, 'error_time': 157.81962037086487, 'num_corrections': 143, 'total_time': 170.8070764541626, 'final_distance': 2.23606797749979} - success
 {'num_actions': 12, 'error_time': 188.96915459632874, 'num_corrections': 177, 'total_time': 201.93513441085815, 'final_distance': 2.5} - success
+{'num_actions': 12, 'error_time': 245.05291557312012, 'num_corrections': 229, 'total_time': 258.20259499549866, 'final_distance': 7.762087348130012} - success

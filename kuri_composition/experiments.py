@@ -23,7 +23,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '--exp',
-    default="t&~l",
+    default="~(t|l)&(~s)",
     help="Task expression"
 )
 args = parser.parse_args()
@@ -53,6 +53,61 @@ print("Zero-shot composition")
 exp = sympify(args.exp, evaluate=False)
 exp = boolalg.simplify_logic(exp)
 evf = exp_evf(values, max_evf, min_evf, exp)
+
+def temporal_logics_error_correct(cap,out,points,max_episodes=1,max_steps=50,metrics={}):
+    for episode in range(max_episodes):
+        state = env.reset()
+        evf.reset(state)
+
+        if "num_actions" not in metrics.keys():
+            metrics["num_actions"] = 0
+
+        for step in range(max_steps):
+            # print(evf.get_value(state))
+            #print(step)
+            #img = env.render(agent=True, mode = "rgb_array")
+            #cv2.imshow("env_render",cv2.cvtColor(img,cv2.COLOR_RGB2BGR))
+            #plt.pause(0.00001)
+            action = evf.get_action(state)
+            last_state = state
+            state, reward, done, _ = env.step(action)
+            #print(state)
+
+            #print("STEP: {}".format(action))
+            
+            if action == env.actions.up:
+                motion.send_movement_command(cap,[motion.FORWARD_MAGNITUDE*1000,0,0,0,0,0])
+            elif action == env.actions.left:
+                motion.send_movement_command(cap,[0,0,0,0,0,motion.TURN_MAGNITUDE*1000])
+            elif action == env.actions.right:
+                motion.send_movement_command(cap,[0,0,0,0,0,-motion.TURN_MAGNITUDE*1000])
+            elif action == env.actions.done:
+                break
+            else:
+                print("Command not recognised. Must be w, a, d or q")
+                continue
+
+            _,frame = camera.update_image(cap)
+            camera.draw_frame(frame,out)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+            # Correct to expected state
+            if done:
+                state = last_state
+            
+            goal,goal_direction = camera.get_goal_from_state(state)
+            draw_circles = {"Goal":goal}
+            metrics = motion.error_correct(cap,out,goal,goal_direction,draw_circles=draw_circles,metrics=metrics)
+
+
+            metrics["num_actions"] += 1
+
+            if done:
+                break
+
+    return metrics,last_state
 
 def rl_correct_after_every_step(cap,out,points,max_episodes=1,max_steps=50,metrics={}):
     for episode in range(max_episodes):

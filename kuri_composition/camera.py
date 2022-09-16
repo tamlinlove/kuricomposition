@@ -275,6 +275,7 @@ def simple_localisation_test():
         display("frame",frame,out)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
+            #plt.imsave("localise.png",cv2.cvtColor(frame,cv2.COLOR_BGR2RGB))
             break
 
     cap.release()
@@ -423,6 +424,7 @@ def draw_states():
         cv2.imshow('frame',frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
+            #plt.imsave("state_map.png",cv2.cvtColor(frame,cv2.COLOR_BGR2RGB))
             break
 
     cap.release()
@@ -434,6 +436,6 @@ def draw_states():
 if __name__ == "__main__":
     #camera_test(draw_colours=True)
     #take_picture(image_dir+'calibration.png')
-    #simple_localisation_test()
+    simple_localisation_test()
     #qr_localiser()
-    draw_states()
+    #draw_states()

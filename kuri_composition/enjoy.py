@@ -15,7 +15,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-start_position = (9,1)
+start_position = (8,2)
 start_direction = Directions.up
 exp = args.exp.replace("t", "(nw | ne)")
 exp = exp.replace("l", "(nw | sw)")
